@@ -11,6 +11,54 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ---
 
+## [0.5.0] — 2026-04-24
+
+Promotes roadmap research from a single `L1a+L1b` scan to a full five-phase
+protocol with its own directive, scoring rubric, tier taxonomy, and
+cross-family self-audit. Lifts directly from a user-authored research prompt
+that had battle-tested discipline the factory's L1 was missing (quantity-first
+harvesting, explicit Rejected tier with reasoning, source-citation as a
+commit gate, adversarial self-audit on a different model family).
+
+### Added
+- `memory/directives/directive-roadmap-research.md` — five-phase research protocol:
+  - **Phase 0** — Repo reconnaissance + "State of the Repo" memo
+  - **Phase 1** — External research with 30-60 source floor across 9 source classes (OSS competitors / commercial peers / adjacent-domain / awesome-lists / community signal / standards & RFCs / academic+conference / dependency changelogs / CVE databases)
+  - **Phase 2** — Quantity-first feature harvesting (80-200+ raw items expected, filter NOTHING during extraction)
+  - **Phase 3** — Six-dimension scoring (Fit / Impact / Effort / Risk / Dependencies / Novelty) + five-tier bucketing (Now / Next / Later / Under Consideration / Rejected). Dual-axis: priority (P0/P1/P2) and tier (commitment state).
+  - **Phase 4** — Author or reconcile `ROADMAP.md` with preserve-useful / supersede-outdated semantics. Appendix citation for every Now/Next/Later/UC item is a commit gate.
+  - **Phase 5** — Seven-check adversarial self-audit routed to `copilot-codex` (different family than Phases 2-4). Checks: source traceability, tier placement reasoning, category coverage (13 categories), internal consistency, adversarial review, charter alignment, file-on-disk.
+- Directive includes a full routing table per phase (master session for Phase 0, gemini:flash for Phase 1 breadth, copilot-sonnet for depth/harvest/score/author, copilot-codex for Phase 5 audit).
+- Directive supports standalone invocation outside a factory run: "Apply directive-roadmap-research.md to ~/repos/<name>".
+
+### Changed
+- `memory/recipes/recipe-factory-loop.md` L1 rewritten to delegate to the new directive. L1a (9-dimension scan) and L1b (synthesis) collapsed into a single `L1. Apply directive-roadmap-research.md` step that invokes all five phases with the recipe's iteration semantics (full on iter 1, delta on iter 2+).
+- Recipe's directives table gains `directive-roadmap-research.md` row.
+- L2 implementation step now says "top 10 items in the `Now` tier" (was "top 10 unchecked P0/P1"). P0/P1/P2 and Now/Next/Later/UC/Rejected coexist — priority captures urgency, tier captures commitment state.
+- Hard-caps + Large-Repo-Mode tables updated to the tier taxonomy.
+- `prompts/factory-loop-prompts.txt` RESEARCH EXPECTATION section rewritten to reference the directive, list the 9 source classes, document the 30-60 source floor, and explain the five artifact files that land in `docs/research/iter-<N>-*.md`.
+- Prompt's lazy-load directives list includes the new directive.
+
+### Why
+
+User shared a battle-tested "Roadmap Research Agent" prompt they'd been using outside the factory. It had discipline the factory's L1 was missing:
+- **Quantity-first harvest** (80-200+ raw items before filtering) — the old L1 filtered during extraction, losing good ideas for bad reasons.
+- **Explicit Rejected tier with reasoning** — the old L1 silently dropped charter-incompatible items, inviting future runs to re-propose them.
+- **Source-citation as a gate** — the old L1 asked tasks to cite the research dimension they came from but didn't require an Appendix URL.
+- **Adversarial self-audit on a different model family** — the old L1 had the writer judge its own output.
+- **Reconciliation semantics** — the old L1 replenished in-place without a protocol for preserving useful prior items.
+
+The five-phase protocol fixes all of these while staying on `copilot-heavy` routing (Claude Max still reserved for PEC escalation).
+
+### Verification
+
+- Directive parses as valid microagent (YAML frontmatter: `name`, `description`, `type: knowledge`, `triggers: [...]`, `agents: [...]`).
+- Recipe L1 delegates correctly — all five phase artifacts are listed in the recipe's L1 block AND in the directive's per-phase output sections. No drift.
+- Prompt cross-references: directive appears in (1) lazy-load list, (2) RESEARCH EXPECTATION section. Recipe references match.
+- Tier taxonomy (Now/Next/Later/UC/Rejected) consistent across directive Phase 3, recipe L2 cap, hard-caps block, Large-Repo-Mode table.
+
+[0.5.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.5.0
+
 ## [0.4.1] — 2026-04-24
 
 Hardens the logo/icon generation directive so transparent background + PNG
@@ -309,6 +357,6 @@ Initial public release. Full pipeline working end-to-end on Windows 11 + Git Bas
 - Linux Ubuntu 24.04 / Debian 12 / Arch — light testing
 - Provider stack: Claude Max, ChatGPT Pro Codex, Gemini Pro, GitHub Copilot
 
-[Unreleased]: https://github.com/SysAdminDoc/octopus-factory/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/SysAdminDoc/octopus-factory/compare/v0.5.0...HEAD
 [0.2.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.2.0
 [0.1.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.1.0

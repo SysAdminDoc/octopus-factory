@@ -67,31 +67,47 @@ OFFLOAD POLICY (non-negotiable):
   ChatGPT Pro Codex stays cold unless `--final-codex-pass` is set.
 
 RESEARCH EXPECTATION (default is "extensive", not "quick"):
-- L1a research runs ALL 9 dimensions on iter 1, regardless of whether
-  ROADMAP.md already has items. Existing ROADMAP items do NOT suppress
-  research — research expands the ROADMAP with high-leverage tasks the
-  existing list missed.
-- The 9 research dimensions (see recipe-factory-loop.md L1a for full detail):
-    1. Competitor feature parity (top 3 OSS + top 3 commercial peers)
-    2. Recent upstream releases (dependency changelogs, 60-day window)
-    3. CVE / security advisories (OSV.dev + GitHub Advisory DB)
-    4. Accessibility gaps (WCAG 2.2 AA dimensions)
-    5. Performance regressions (bundle/startup/memory drift)
-    6. UX / GUI polish opportunities (interactive-state coverage, motion,
-       microcopy, error-message specificity)
-    7. Theme coverage (dark-mode edge cases, interactive-state coverage
-       across all themes)
-    8. Community asks (last 90 days of issues/discussions/PRs — this repo
-       AND top 2 peers)
-    9. Platform / ecosystem shifts (deprecations on the clock)
-- Research output lands in `docs/research/iter-<N>-landscape.md`, one
-  section per dimension, marked UNTRUSTED DATA. Each ROADMAP task added by
-  L1b MUST cite which research dimension it came from.
-- If the project is a GUI app, the UX / theme / accessibility dimensions
-  get weighted higher in task ranking.
-- Iteration 2+ does DELTA research only — net-new findings since last iter.
+- L1 applies `directive-roadmap-research.md` — the five-phase research
+  protocol (Phase 0 repo recon → Phase 1 external → Phase 2 quantity-first
+  feature harvesting → Phase 3 six-dimension scoring + five-tier bucketing
+  → Phase 4 author/reconcile ROADMAP.md → Phase 5 adversarial self-audit).
+  Runs ALWAYS on existing repos regardless of ROADMAP state — research
+  EXPANDS it, never bypasses when "full".
+- Phase 1 has a 30-60 distinct-source FLOOR with every URL recorded in an
+  Appendix. Phase 2 extracts 80-200+ raw items before any filtering.
+  Phase 3 scores each on Fit / Impact / Effort / Risk / Dependencies /
+  Novelty and assigns to Now / Next / Later / Under Consideration /
+  Rejected. Rejected items retain reasoning so future runs can't silently
+  resurrect them.
+- Phase 5 self-audit runs on a DIFFERENT model family than Phases 2-4
+  (copilot-codex reviews copilot-sonnet's work) and checks seven dimensions:
+  source traceability, tier placement reasoning, category coverage
+  (security/a11y/i18n/observability/testing/docs/distribution/plugin/
+  mobile/offline/multi-user/migration/upgrade), internal consistency,
+  adversarial review, charter alignment, file-on-disk.
+- Research artifacts land in `docs/research/iter-<N>-*.md`:
+    state-of-repo.md (Phase 0)
+    sources.md + landscape.md (Phase 1)
+    harvest.md (Phase 2, 80-200+ raw items)
+    scored.md (Phase 3, tiered + full scoring blocks)
+    audit.md (Phase 5, 7-check result)
+- The 9 source classes (extension of the old 9 dimensions):
+    1. Direct OSS competitors (10-25 projects)
+    2. Commercial / closed-source competitors
+    3. Adjacent-domain projects (steal architecture/UX/plugin patterns)
+    4. Awesome-lists
+    5. Community signal (Reddit/HN/Lobsters/SO/forums/Discord)
+    6. Standards / specs / RFCs / platform APIs
+    7. Academic + engineering blogs + conference talks
+    8. Dependency changelogs (features you could expose but haven't)
+    9. Security advisories + CVE databases
+- Iteration 2+ is DELTA mode on Phase 1 only (net-new since prior
+  iter-<N-1>-sources.md). Phases 2-5 still run in full but merge-into
+  rather than rebuild-from-scratch.
 
 Lazy-load directives only when the phase that needs them fires:
+  directive-roadmap-research.md  (L1 — five-phase research: recon → external
+                                  → harvest → score → reconcile → self-audit)
   directive-audit.md             (L3/L4 fallback)
   directive-debate.md            (L3/L4 primary — three-role Grader/Critic/Defender)
   directive-circuit-breakers.md  (runs alongside every phase)

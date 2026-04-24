@@ -4,6 +4,24 @@ Prioritized integration plan based on a survey of related projects (Aider, Cline
 
 Each item cites the upstream source so contributors can lift code with attribution. Items are ordered by leverage — highest-impact first.
 
+## v0.5.0 — shipped 2026-04-24
+
+### Five-phase roadmap research directive + tier taxonomy
+
+**Status:** shipped in v0.5.0
+**Why:** A user-authored "Roadmap Research Agent" prompt had research discipline the factory's L1 was missing. Lifting it formalizes quantity-first harvesting, explicit Rejected-tier-with-reasoning, source-citation as a commit gate, adversarial self-audit on a different model family, and reconciliation semantics on existing ROADMAPs.
+
+**What shipped:**
+- `memory/directives/directive-roadmap-research.md` — five-phase research protocol (Phase 0 repo recon → Phase 1 external with 9 source classes and 30-60 source floor → Phase 2 quantity-first harvest → Phase 3 six-dim scoring + five-tier bucketing → Phase 4 author/reconcile → Phase 5 seven-check self-audit on different model family).
+- Recipe L1 rewritten to delegate to the directive. L1a/L1b collapsed into a single `L1. Apply directive-roadmap-research.md` step.
+- Tier taxonomy (Now / Next / Later / Under Consideration / Rejected) introduced alongside existing priority (P0/P1/P2). Priority = urgency; tier = commitment state.
+- Prompt, hard-caps table, and Large-Repo-Mode table all updated to the new taxonomy.
+- Phase 5 self-audit routed to `copilot-codex` (different family than Phases 2-4's `copilot-sonnet`) — cross-family review catches what same-family self-review misses.
+
+**Closes:** the "factory L1 dropped good ideas during extraction" failure mode + the "Rejected items silently resurrect on next run" pattern.
+
+---
+
 ## v0.4.0 — shipped 2026-04-24
 
 ### Copilot-heavy canonical default + 9-dimension research scan + offload policy

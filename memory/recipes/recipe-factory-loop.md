@@ -86,6 +86,7 @@ Each phase reads only the directive it needs — keeps working context focused.
 | [directive-secret-scan.md](directive-secret-scan.md) | every commit gate |
 | [directive-modularization.md](directive-modularization.md) | M-phase (decompose monoliths into well-organized modules; behavior-preserving) |
 | [directive-logo.md](directive-logo.md) | G-phase (existing projects missing icons) and P5 (new projects) |
+| [directive-roadmap-research.md](directive-roadmap-research.md) | L1 (five-phase research: recon → external → harvest → score → reconcile → self-audit) |
 | [recipe-ai-scrub.md](recipe-ai-scrub.md) | S-phase (history cleanup between preflight and loop) |
 | [recipe-release-build.md](recipe-release-build.md) | Q3 (project-type-aware build + sign + release pipeline) |
 
@@ -244,8 +245,8 @@ run picks up where this one left off. N runs incrementally drain the ROADMAP.
 | Setting | Default | Large-Repo Mode |
 |---|---|---|
 | Iterations per run | 3-5 | **1** (single iteration per run, persistent across runs) |
-| L1 ROADMAP replenish | up to 10 NEW tasks | up to **5 NEW tasks** |
-| L2 implementation cap | top 10 P0/P1 | top **3 P0/P1** |
+| L1 ROADMAP replenish | up to 10 NEW Now+Next items | up to **5 NEW Now+Next items** |
+| L2 implementation cap | top 10 Now-tier | top **3 Now-tier** |
 | L3/L4 audit cadence | full every 1st/last/3rd | full **only on the iteration that closes the last roadmap item** (smoke pass otherwise) |
 | U-phase (UX polish) | runs once after loop | **rotated** — runs only if last-run-state says it hasn't run in the last 5 invocations OR a UI task closed this run |
 | T-phase (theming) | runs once after UX | **rotated** — runs only after U-phase ran in a recent invocation |
@@ -622,63 +623,57 @@ G7. Halt conditions (fail loud; do NOT silently continue):
     - SVG validation fails after 3 retries → fall through to Path 2.
 
 # === LOOP (N iterations, stop-early on convergence) ===
-L1a. RESEARCH (heavy by default — even if ROADMAP has items; research feeds quality task selection).
-     Routed through `copilot-sonnet` (via routing.phases.research_augment) with
-     `gemini:flash` as the cheap broad-scan seed. Claude Max is NOT used here —
-     preserve the quota. Research is ALWAYS wide before ROADMAP work starts.
+L1. Apply [directive-roadmap-research.md](directive-roadmap-research.md) — the
+    five-phase research protocol (Phase 0 repo recon → Phase 1 external → Phase 2
+    feature harvesting → Phase 3 scoring + tier assignment → Phase 4 author/
+    reconcile ROADMAP.md → Phase 5 self-audit). Runs ALWAYS on existing repos,
+    regardless of whether ROADMAP already has items — research expands it,
+    doesn't bypass when "full".
 
-     **Research dimensions (run all 9 on iter 1; delta-only on iter 2+):**
-     1. **Competitor feature parity** — top 3 OSS and top 3 commercial peers via
-        GitHub topic search + trending + context7. What do they have that we
-        don't? Rank by user-impact.
-     2. **Recent upstream releases** — dependencies' last 60 days of changelogs.
-        New APIs we should adopt? Deprecations we should pre-empt?
-     3. **CVE / security advisories** — CVE DB + OSV.dev + GitHub Advisory DB
-        for every dep + every dep-of-dep in critical chains. Feeds D-phase
-        but surface P0 vulns to the ROADMAP here.
-     4. **Accessibility gaps** — WCAG 2.2 AA audit dimensions: keyboard nav,
-        screen reader labels, contrast, focus visibility, motion tolerance,
-        reduced-motion respect. Standard that most projects under-deliver on.
-     5. **Performance regressions** — bundle size drift, startup time drift,
-        memory floor drift since last release (if measurable artifacts exist
-        in the repo — e.g. prior Lighthouse reports, prior build-size logs).
-     6. **UX / GUI polish opportunities** — interactive state coverage (hover,
-        focus, active, disabled, loading, error, empty, success), motion,
-        microcopy, error-message specificity. Feeds U-phase; surface high-
-        impact gaps to ROADMAP here.
-     7. **Theme coverage** — does every theme the project supports have full
-        interactive-state coverage? Dark mode edge cases (scrollbars, shadows,
-        selection colors, focus rings). Feeds T-phase.
-     8. **Community asks** — last 90 days of issues + discussions + PRs on
-        the repo itself AND on the top 2 peer projects. Patterns in user
-        asks often highlight blind spots.
-     9. **Platform / ecosystem shifts** — Chrome MV3 deprecations, Android
-        API level changes, .NET framework bumps, Python minor-version
-        feature drops, browser baseline updates, etc. Anything on a
-        deprecation clock affecting this project.
+    **Routing (per directive):**
+    - Phase 0 → master session (free, in-context)
+    - Phase 1 breadth → `gemini:flash`; Phase 1 depth → `copilot-sonnet`
+    - Phases 2-4 → `copilot-sonnet`
+    - Phase 5 self-audit → `copilot-codex` (different family than the writer)
 
-     **Output format:** `docs/research/iter-<N>-landscape.md` with one section
-     per dimension. Each section cites 2-5 links + a paragraph on "how this
-     affects our ROADMAP." Marked UNTRUSTED DATA per trust-boundary rules.
+    **Iter-1 scope:** all 5 phases end-to-end, 30-60 source floor on Phase 1,
+    80-200+ raw items in Phase 2, full ROADMAP reconciliation in Phase 4.
 
-     **Delta mode (iter 2+):** only net-new findings since last iter's
-     landscape. All 9 dimensions still covered, but pruned to the delta.
+    **Iter 2+ delta mode:** Phase 1 only scans net-new since last iter's sources
+    (reads `docs/research/iter-<N-1>-sources.md`). Phase 2 merges new items
+    into the prior harvest. Phase 3 re-scores the affected items + any whose
+    dependencies just landed. Phase 4 updates `ROADMAP.md` with a diff-style
+    reconciliation. Phase 5 still runs full — self-audit is non-skippable.
 
-L1b. SYNTHESIZE (routed through `copilot-sonnet`; Claude Max only if the synth
-     returns UNCERTAIN on ≥3 items — then escalate per preset).
-     Replenish ROADMAP.md with up to 10 NEW P0/P1 tasks. Each task MUST cite
-     which of the 9 research dimensions it came from (traceability — "why is
-     this on the list?"). Cap is hard.
+    **Artifacts per iteration** (all marked UNTRUSTED DATA per trust-boundary):
+    - `docs/research/iter-<N>-state-of-repo.md` (Phase 0)
+    - `docs/research/iter-<N>-sources.md` (Phase 1 — URL list with summaries)
+    - `docs/research/iter-<N>-landscape.md` (Phase 1 — 9-dimension synthesis)
+    - `docs/research/iter-<N>-harvest.md` (Phase 2 — quantity-first raw items)
+    - `docs/research/iter-<N>-scored.md` (Phase 3 — 6-dim scoring + tier assign)
+    - `docs/research/iter-<N>-audit.md` (Phase 5 — 7-check adversarial audit)
 
-     **Quality gate on the replenished tasks:**
-     - Each task has a one-line outcome (not a vague aspiration).
-     - Each task has a blast-radius estimate (files touched, tests added).
-     - Each task is scope-compatible with the repo charter (per L1's scope
-       guards) — charter-violating items get tagged `CHARTER-REVIEW` and
-       deferred, not added.
-     - Duplicate detection: if the task already appears (closed or open) in
-       ROADMAP.md, drop it.
-L2. claude: implement top 10 unchecked P0/P1 items following the PEC pattern.
+    **ROADMAP outputs** (Phase 4 writes these at repo root):
+    - `ROADMAP.md` with Now / Next / Later / Under Consideration / Rejected
+      tiers + Appendix of sources. Every Now/Next/Later item MUST trace to
+      ≥1 Appendix URL. Rejected items retain reasoning so future runs don't
+      silently resurrect them.
+
+    **Cap on ROADMAP additions per iter:** up to 10 NEW items land in Now+Next
+    combined. Later/UC/Rejected have no cap (cheap to record).
+
+    **Quality gate (enforced by Phase 5 audit):**
+    - Source traceability: every Now/Next/Later/UC item cites an Appendix URL
+    - Tier placement justification in scored.md
+    - Category coverage check (security / a11y / i18n / observability / testing
+      / docs / distribution / plugin / mobile / offline / multi-user / migration
+      / upgrade) — thin categories trigger another Phase 1 pass on that category
+    - Charter alignment — charter-violating items go to Rejected with reasoning,
+      NOT to Now/Next
+    - Adversarial review — different-family model reviews what the writer missed
+L2. claude: implement the top 10 items in the `Now` tier of `ROADMAP.md`
+    (equivalent to P0/P1 in the old taxonomy — see directive-roadmap-research.md
+    for the dual-axis priority+tier model). Follow the PEC pattern.
     **PEC (Planner-Executor-Critic) per task — pre-declared rubric BEFORE any code:**
     For each task, before touching code, Claude writes to .factory/rubrics/<task-id>.yaml:
       goal: <one-line outcome>
@@ -913,8 +908,8 @@ Both are "phase 2" improvements — apply once the current single-machine pipeli
 ## Tunable Caps
 
 - `--iterations` — total loop passes (default 5, max 7 enforced by guardrail)
-- L1b ROADMAP replenish: up to 10 NEW P0/P1 tasks per iteration
-- L2 implementation: top 10 unchecked P0/P1 items per iteration
+- L1 ROADMAP replenish: up to 10 NEW items in Now+Next tiers per iteration (Later/Under-Consideration/Rejected uncapped)
+- L2 implementation: top 10 unchecked items from the `Now` tier per iteration
 - L3 cadence: full on iter 1 + final + every 3rd; smoke otherwise
 - `OCTOPUS_FACTORY_MAX_SPEND` — USD cap (default 5)
 
