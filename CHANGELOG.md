@@ -11,6 +11,79 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ---
 
+## [0.4.0] — 2026-04-24
+
+Default workflow rebalanced: Copilot-heavy is now canonical, L1 research is
+heavier and mandatory even when the ROADMAP already has items, and the
+default prompt is explicit about offload policy and research scope. Bulk
+research / synthesis / implementation / counter-passes / UX / theming /
+audit all route through Copilot's Sonnet 4.6 and GPT-5.3-Codex. Claude Max
+(this session) is reserved for escalation — PEC stalemates, debate
+non-convergence, security escalation, novel architectural decisions.
+
+### Added
+- `prompts/factory-loop-prompts.txt` — rewritten default prompt with an
+  explicit OFFLOAD POLICY section (copilot-heavy preset mandatory, escalation-
+  only Claude Max), an explicit RESEARCH EXPECTATION section (9 dimensions
+  always run on iter 1), and higher iteration defaults (EXISTING-clean went
+  from `1 --audit-only` to `2 iterations with research`).
+- **9-dimension research scan** in `memory/recipes/recipe-factory-loop.md`
+  L1a: (1) competitor feature parity, (2) recent upstream releases, (3) CVE /
+  security advisories, (4) accessibility gaps (WCAG 2.2 AA), (5) performance
+  regressions, (6) UX / GUI polish opportunities, (7) theme coverage,
+  (8) community asks, (9) platform / ecosystem shifts. Output lands in
+  `docs/research/iter-<N>-landscape.md`. Each ROADMAP task added by L1b must
+  cite its source dimension.
+- `--final-codex-pass` flag: on the final iteration, run a direct-ChatGPT-Pro-
+  Codex audit pass in addition to the Copilot audit. Release-day signal.
+
+### Changed
+- **`copilot-heavy` is now the canonical default preset.** `balanced` was
+  the old default; use it via `octo-route.sh balanced` when you want every
+  subscription to share load equally. The recipe's Provider Routing table
+  now documents copilot-heavy as the reference, and the factory-loop prompt
+  verifies/enforces the preset on entry.
+- L1a RESEARCH is now heavy by default — the 9 dimensions run ALL on iter 1
+  regardless of whether ROADMAP.md has items. Research EXPANDS existing
+  ROADMAPs rather than bypassing when "already full". Delta-only mode on
+  iter 2+.
+- L1b SYNTHESIZE replenish now requires each new task cite which research
+  dimension it came from (traceability). Duplicate detection added. Charter-
+  incompatible tasks are tagged `CHARTER-REVIEW` and deferred, not silently
+  dropped.
+- Iteration-count defaults raised: EXISTING with active roadmap goes from
+  3 to 4 iterations. EXISTING clean goes from 1 `--audit-only` to 2 full
+  iterations with research (don't ship "nothing changed" runs).
+- L3/L4 audit cadence docs now mention `--final-codex-pass` as a release-
+  day option.
+
+### Why
+
+User hit a run on the Images repo where the factory found 2 completed tasks,
+declared the roadmap clean, and exited. The pattern was: existing ROADMAP →
+skip research → no new work found → exit. The fix is that research is
+unconditional — even full ROADMAPs get the 9-dimension scan, and the scan's
+job is to find what the current ROADMAP missed. Research output feeds
+high-leverage additions, and the offload policy makes sure the heavy lift
+lands on Copilot's Sonnet 4.6 / GPT-5.3-Codex instead of burning Claude Max
+on bulk work it doesn't need to do.
+
+### Verification
+
+- Prompt round-trip: `factory-loop-prompts.txt` default section, audit-only
+  section, plan section, and final-codex-pass section all parse as valid
+  prompt bodies (no YAML frontmatter, markdown headings consistent).
+- Recipe cross-references: L1a dimensions list + L1b citation requirement +
+  provider routing table + mode-flags table + guardrail note all consistent.
+- Flag `--final-codex-pass` documented in (1) provider routing table,
+  (2) mode semantics flag table, (3) L3/L4 cadence note, (4) prompt
+  optional-variant section.
+- Routing check: copilot-heavy preset already had `research_augment:
+  copilot-sonnet` + `review/security/ux/theming: copilot-codex` + `builder:
+  copilot-sonnet` + `escalate-to-opus: claude` — no preset changes needed.
+
+[0.4.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.4.0
+
 ## [0.3.0] — 2026-04-24
 
 Adds a logo/icon generation phase for existing projects (G-phase) and makes SVG-via-Copilot the primary path so OpenAI billing is no longer a prerequisite for icon work. Closes the "Images repo got no logo on first factory pass" bug.
@@ -189,6 +262,6 @@ Initial public release. Full pipeline working end-to-end on Windows 11 + Git Bas
 - Linux Ubuntu 24.04 / Debian 12 / Arch — light testing
 - Provider stack: Claude Max, ChatGPT Pro Codex, Gemini Pro, GitHub Copilot
 
-[Unreleased]: https://github.com/SysAdminDoc/octopus-factory/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/SysAdminDoc/octopus-factory/compare/v0.4.0...HEAD
 [0.2.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.2.0
 [0.1.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.1.0

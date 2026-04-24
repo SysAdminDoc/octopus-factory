@@ -4,6 +4,31 @@ Prioritized integration plan based on a survey of related projects (Aider, Cline
 
 Each item cites the upstream source so contributors can lift code with attribution. Items are ordered by leverage — highest-impact first.
 
+## v0.4.0 — shipped 2026-04-24
+
+### Copilot-heavy canonical default + 9-dimension research scan + offload policy
+
+**Status:** shipped in v0.4.0
+**Why:** A factory run on the Images repo exited after finding 2 closed tasks and declaring the ROADMAP "clean". The pattern was: existing ROADMAP → skip research → no new work found → exit. User reported that runs should be "extremely involved" by default — research ambitious, heavy-lifting offloaded to Copilot so Claude Max quota is preserved for escalation, and the workflow should expand ROADMAPs even when they already have items.
+
+**What shipped:**
+- Default prompt (`prompts/factory-loop-prompts.txt`) rewritten with an explicit OFFLOAD POLICY (copilot-heavy mandatory, Claude Max reserved for escalation only) and RESEARCH EXPECTATION (9 dimensions always on iter 1).
+- Recipe L1a expanded from "broad scan" to an explicit **9-dimension landscape audit** — competitor parity, upstream releases, CVEs, accessibility (WCAG 2.2 AA), performance regressions, UX polish, theme coverage, community asks, platform/ecosystem shifts. Output to `docs/research/iter-<N>-landscape.md`; tasks cite their source dimension for traceability.
+- Provider Routing table rewritten to document copilot-heavy as canonical (balanced demoted to "specialized preset").
+- Iteration defaults raised: existing repos with active ROADMAP go 3→4; clean repos go from `1 --audit-only` to `2 full iterations with research`.
+- New flag: `--final-codex-pass` for release-day direct-ChatGPT-Pro-Codex audit.
+
+**Offload policy enforcement:**
+- Bulk research synthesis → Copilot Sonnet 4.6
+- Bulk implementation → Copilot Sonnet 4.6
+- Audit / UX / theming passes → Copilot GPT-5.3-Codex
+- Weak-tier mechanical work → Copilot Haiku 4.5
+- Claude Max (master session) only escalates on PEC UNCERTAIN ≥3, debate stalemate, security escalation, or novel architecture on new projects.
+
+**Closes:** the "factory declared ROADMAP clean and exited without finding anything" bug pattern.
+
+---
+
 ## v0.3.0 — shipped 2026-04-24
 
 ### G-phase logo/icon generation for existing projects (no OpenAI billing required)

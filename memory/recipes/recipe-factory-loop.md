@@ -18,16 +18,54 @@ Full-project autonomous run across Claude + Codex + Gemini + Copilot. Gated by b
 - Hot-fix / single-bug work — use `/octo:debug` or `/octo:quick`; factory overhead is wasted.
 - Credential-required destructive operations (prod deploys, live DB migrations) — factory must not be handed those keys.
 
-## Provider Routing (balanced mode — ~/.claude-octopus/config/providers.json)
+## Provider Routing
 
-| Phase / role | Primary | Secondary |
+**The canonical routing preset is `copilot-heavy`.** Swap with
+`~/.claude-octopus/bin/octo-route.sh copilot-heavy`. This is the default the
+factory loop is tuned for — it offloads the lion's share of work to Copilot's
+Sonnet 4.6 (build / define / counter-audit / UX-counter / theming-counter /
+synthesis) and GPT-5.3-Codex (review / security / UX / theming / audit), with
+Gemini Flash seeding broad research and Claude Max reserved for escalation
+paths. Direct ChatGPT Pro Codex stays cold until a run proves Sonnet 4.6's
+reasoning misses real issues. Direct Claude Max only fires when
+`escalate-to-opus` triggers (Sonnet 4.6 returned UNCERTAIN ≥3 times on the
+same PEC rubric).
+
+**Why `copilot-heavy` is default:** it preserves both Claude Max and direct
+ChatGPT Pro Codex quotas for the work that actually needs them (novel
+architecture, final-iteration release audits), while burning Copilot Premium
+Requests (effectively subscription-unlimited for most runs) on the bulk
+research + synthesis + implementation + counter-pass load that a single heavy
+factory run demands.
+
+| Phase / role | Primary | Escalation |
 |---|---|---|
-| Research / discover | **Gemini** (Gemini Pro) | **Claude Max** augments (two-pass on iter 1; Claude-only delta thereafter) |
-| Define / develop / counter-audit / build | **Claude Max** | Copilot (auto-fallback) |
-| Review / security / UX / Theming audit | **Codex** (ChatGPT Pro, gpt-5.4) | Copilot (auto-fallback) |
-| Deliver + universal fallback | **Copilot** | — |
+| Research broad scan (9 dimensions) | **Gemini Flash** | — (cheap, wide) |
+| Research synthesis + ROADMAP replenish | **Copilot Sonnet 4.6** | Claude Max on `escalate-to-opus` |
+| Define / develop / build | **Copilot Sonnet 4.6** | Claude Max on `escalate-to-opus` |
+| Review / security / audit | **Copilot GPT-5.3-Codex** | Direct ChatGPT Pro Codex on final iter if `--final-codex-pass` |
+| UX pass (first + counter) | **Copilot GPT-5.3-Codex** (first) + **Copilot Sonnet 4.6** (counter) | — |
+| Theming pass (first + counter) | **Copilot GPT-5.3-Codex** (first) + **Copilot Sonnet 4.6** (counter) | — |
+| Deliver + universal fallback | **Copilot Sonnet 4.6** | — |
 | Icon / logo (geometric, primary path) | **Copilot** (SVG generation → ImageMagick rasterize) | **Codex** (`gpt-image-1`) → **Gemini** (`gemini-3-pro-image-preview`) |
-| Counter-pass on any Codex phase | **Claude Max** | — |
+| Weak-tier mechanical work | **Copilot Haiku 4.5** | — |
+
+**Escalation policy.** The master Claude Code session running this recipe is
+the ONLY place Claude Max quota burns. It escalates to itself (same session)
+when:
+- A PEC rubric returns UNCERTAIN ≥3 rounds on the same task
+- A three-role debate stalemates (KS distance never converges below 0.05)
+- A security-critical finding needs Opus-level reasoning
+- The user explicitly requested Claude handle a specific phase
+
+Everything else MUST route through Copilot. If the master session catches
+itself doing bulk research / synthesis / straight implementation without
+escalation justification, that's a routing bug — route it to Copilot.
+
+**Other routing presets** (`balanced`, `claude-heavy`, `codex-heavy`,
+`direct-only`, `copilot-only`) remain available for specialized runs.
+`balanced` was the old default; use it when you want every subscription to
+share load equally.
 
 **Icon/logo path policy.** The default is Path 1 (SVG via Copilot) — no OpenAI billing required and most project icons are geometric. Only fall through to Path 2 (Codex `gpt-image-1`) on explicit `--raster-logo` flag or when the brief calls for photographic content. See [directive-logo.md](directive-logo.md).
 
@@ -584,12 +622,62 @@ G7. Halt conditions (fail loud; do NOT silently continue):
     - SVG validation fails after 3 retries → fall through to Path 2.
 
 # === LOOP (N iterations, stop-early on convergence) ===
-L1a. gemini:
-     - Iteration 1: full web + OSS + context7 landscape scan (same as P3a).
-     - Iteration 2+: DELTA scan only — new releases / CVEs / feature drops since last iter.
-     Output marked UNTRUSTED DATA.
-L1b. claude: augment L1a + repo-aware synthesis. Replenish ROADMAP.md with up to 10
-     NEW P0/P1 tasks. Cap is hard.
+L1a. RESEARCH (heavy by default — even if ROADMAP has items; research feeds quality task selection).
+     Routed through `copilot-sonnet` (via routing.phases.research_augment) with
+     `gemini:flash` as the cheap broad-scan seed. Claude Max is NOT used here —
+     preserve the quota. Research is ALWAYS wide before ROADMAP work starts.
+
+     **Research dimensions (run all 9 on iter 1; delta-only on iter 2+):**
+     1. **Competitor feature parity** — top 3 OSS and top 3 commercial peers via
+        GitHub topic search + trending + context7. What do they have that we
+        don't? Rank by user-impact.
+     2. **Recent upstream releases** — dependencies' last 60 days of changelogs.
+        New APIs we should adopt? Deprecations we should pre-empt?
+     3. **CVE / security advisories** — CVE DB + OSV.dev + GitHub Advisory DB
+        for every dep + every dep-of-dep in critical chains. Feeds D-phase
+        but surface P0 vulns to the ROADMAP here.
+     4. **Accessibility gaps** — WCAG 2.2 AA audit dimensions: keyboard nav,
+        screen reader labels, contrast, focus visibility, motion tolerance,
+        reduced-motion respect. Standard that most projects under-deliver on.
+     5. **Performance regressions** — bundle size drift, startup time drift,
+        memory floor drift since last release (if measurable artifacts exist
+        in the repo — e.g. prior Lighthouse reports, prior build-size logs).
+     6. **UX / GUI polish opportunities** — interactive state coverage (hover,
+        focus, active, disabled, loading, error, empty, success), motion,
+        microcopy, error-message specificity. Feeds U-phase; surface high-
+        impact gaps to ROADMAP here.
+     7. **Theme coverage** — does every theme the project supports have full
+        interactive-state coverage? Dark mode edge cases (scrollbars, shadows,
+        selection colors, focus rings). Feeds T-phase.
+     8. **Community asks** — last 90 days of issues + discussions + PRs on
+        the repo itself AND on the top 2 peer projects. Patterns in user
+        asks often highlight blind spots.
+     9. **Platform / ecosystem shifts** — Chrome MV3 deprecations, Android
+        API level changes, .NET framework bumps, Python minor-version
+        feature drops, browser baseline updates, etc. Anything on a
+        deprecation clock affecting this project.
+
+     **Output format:** `docs/research/iter-<N>-landscape.md` with one section
+     per dimension. Each section cites 2-5 links + a paragraph on "how this
+     affects our ROADMAP." Marked UNTRUSTED DATA per trust-boundary rules.
+
+     **Delta mode (iter 2+):** only net-new findings since last iter's
+     landscape. All 9 dimensions still covered, but pruned to the delta.
+
+L1b. SYNTHESIZE (routed through `copilot-sonnet`; Claude Max only if the synth
+     returns UNCERTAIN on ≥3 items — then escalate per preset).
+     Replenish ROADMAP.md with up to 10 NEW P0/P1 tasks. Each task MUST cite
+     which of the 9 research dimensions it came from (traceability — "why is
+     this on the list?"). Cap is hard.
+
+     **Quality gate on the replenished tasks:**
+     - Each task has a one-line outcome (not a vague aspiration).
+     - Each task has a blast-radius estimate (files touched, tests added).
+     - Each task is scope-compatible with the repo charter (per L1's scope
+       guards) — charter-violating items get tagged `CHARTER-REVIEW` and
+       deferred, not added.
+     - Duplicate detection: if the task already appears (closed or open) in
+       ROADMAP.md, drop it.
 L2. claude: implement top 10 unchecked P0/P1 items following the PEC pattern.
     **PEC (Planner-Executor-Critic) per task — pre-declared rubric BEFORE any code:**
     For each task, before touching code, Claude writes to .factory/rubrics/<task-id>.yaml:
@@ -618,6 +706,9 @@ L3+L4. Three-role rubric-conditioned debate (see directive-debate.md):
     - Full debate on iter 1, final iter, every 3rd iter
     - Smoke pass (single rubric check, no debate) on others
     - Escalate smoke → full if smoke finds any FAIL
+    - `--final-codex-pass` flag adds a direct-ChatGPT-Pro-Codex audit pass on
+      the final iteration (in addition to the Copilot audit). Higher signal,
+      burns direct ChatGPT Pro quota — reserve for release day.
 
     **Fallback:** if three-role debate unavailable (rate-limit on required model family),
     fall back to sequential Codex audit → Claude counter-audit per directive-audit.md.
@@ -777,6 +868,7 @@ Q4. Continuation brief appended to repo CLAUDE.md: current state / done this run
 | `--skip-logo` | Skip the G-phase entirely (existing repos with no icon set). New-project P5 still honors the flag and defers. |
 | `--force-logo` | Run the G-phase even when an icon set is already present. Archives the existing set to `assets/icons/old-<timestamp>/` before regenerating. |
 | `--raster-logo` | Skip Path 1 (SVG-via-Copilot) and use Path 2 (`gpt-image-1`) directly. For photographic / complex-composition icons only. Requires `OPENAI_API_KEY`. |
+| `--final-codex-pass` | On the final iteration, run a direct-ChatGPT-Pro-Codex audit pass in addition to the Copilot audit. Release-day use only — burns ChatGPT Pro quota. |
 
 ## Future Work (documented, not yet implemented)
 

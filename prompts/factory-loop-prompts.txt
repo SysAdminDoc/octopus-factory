@@ -9,58 +9,110 @@
  The prompt auto-detects: new-vs-existing, stack, current version, themes,
  scope guards, iteration count, and release target. Nothing to fill in.
 
- Provider routing (balanced mode — ~/.claude-octopus/config/providers.json):
-   Research / discover        →  Gemini primary, Claude Max augments (two-pass)
-   Define / develop / build   →  Claude Max
-   Review / security          →  Codex (ChatGPT Pro)
-   UX polish (first pass)     →  Codex  →  Claude Max counter-pass
-   Theming (first pass)       →  Codex  →  Claude Max counter-pass
-   Audit (three-role debate)  →  Grader (cheap) + Critic (Codex) + Defender (Claude)
-   Deliver + safety net       →  Copilot (universal fallback)
-   Image / logo               →  Codex (gpt-image-1, transparent PNG)
-                                 Fallback: Gemini (gemini-3-pro-image-preview)
-   Counter-audit              →  Claude Max (different family than Critic)
+ CANONICAL ROUTING (default) — copilot-heavy:
+   The default preset is now copilot-heavy so Claude Max quota is preserved
+   for genuine escalation only. Bulk research, synthesis, implementation,
+   counter-passes, UX, theming, and audit all route through Copilot's
+   Sonnet 4.6 and GPT-5.3-Codex. Gemini Flash seeds broad research. Direct
+   Claude Max fires only when the work genuinely needs Opus-level reasoning
+   (PEC rubric UNCERTAIN ≥3 rounds, debate stalemate, security escalation).
 
- Swap routing mode: ~/.claude-octopus/bin/octo-route.sh <mode>
- Modes: balanced | claude-heavy | codex-heavy | direct-only | copilot-only
+   Swap routing: ~/.claude-octopus/bin/octo-route.sh <mode>
+   Modes: copilot-heavy (default) | balanced | claude-heavy | codex-heavy |
+          direct-only | copilot-only
 
  Design principle of this prompt:
    The RECIPE is the source of truth. This prompt does not restate recipe
    internals — doing that is what caused drift in earlier versions. Updates
    to the flow (new phases, new gates, new directives) belong in
    recipe-factory-loop.md, not here. This prompt handles only the dynamic
-   bits (path, goal, iteration count) and a minimal hard-cap/never backstop.
+   bits (path, goal, iteration count), the offload policy, the research
+   expectation, and a minimal hard-cap/never backstop.
 
 =============================================================================
  THE ONLY PROMPT YOU NEED — copy everything between the lines below
 =============================================================================
 
 Run the factory loop on the repo path I just gave you. Autonomous mode —
-decide and proceed, no clarifying questions.
+decide and proceed, no clarifying questions. Do substantial work. "Extensive"
+is the default setting, not the opt-in.
 
 Follow recipe-factory-loop.md in memory EXACTLY, end-to-end. The recipe is
 the source of truth; anything restated below is backstop only, not a
 substitute for reading the recipe.
+
+OFFLOAD POLICY (non-negotiable):
+- The canonical routing preset is `copilot-heavy`. Verify that preset is
+  active via `cat ~/.claude-octopus/config/providers.json | grep _mode`. If
+  the active preset is anything else, swap to copilot-heavy for this run
+  via `~/.claude-octopus/bin/octo-route.sh copilot-heavy` before starting
+  (unless I explicitly overrode it this session).
+- Route the HEAVY LIFT through Copilot. That means: broad research synthesis,
+  ROADMAP replenish, per-task implementation, counter-passes, UX/theming
+  first-pass AND counter-pass, audit first-pass. The master Claude session
+  (this session) dispatches, coordinates, and reviews — it does NOT handle
+  bulk implementation or routine audits on its own.
+- Claude Max (this session) ONLY fires as itself when:
+    1. A PEC rubric returned UNCERTAIN on ≥3 rounds on the same task (Opus
+       escalation). OR
+    2. A three-role debate stalemates (KS distance never drops below 0.05
+       across max rounds). OR
+    3. A security-critical finding needs Opus-level reasoning to resolve. OR
+    4. Architectural novelty on a NEW project's foundational decisions
+       where Sonnet 4.6 via Copilot would be undershooting.
+  If none of (1-4) are happening, route work to Copilot. Catching yourself
+  doing bulk implementation in this Claude session without an escalation
+  reason is a routing bug — stop and delegate.
+- Gemini Flash seeds broad research (the 9-dimension landscape scan). Direct
+  ChatGPT Pro Codex stays cold unless `--final-codex-pass` is set.
+
+RESEARCH EXPECTATION (default is "extensive", not "quick"):
+- L1a research runs ALL 9 dimensions on iter 1, regardless of whether
+  ROADMAP.md already has items. Existing ROADMAP items do NOT suppress
+  research — research expands the ROADMAP with high-leverage tasks the
+  existing list missed.
+- The 9 research dimensions (see recipe-factory-loop.md L1a for full detail):
+    1. Competitor feature parity (top 3 OSS + top 3 commercial peers)
+    2. Recent upstream releases (dependency changelogs, 60-day window)
+    3. CVE / security advisories (OSV.dev + GitHub Advisory DB)
+    4. Accessibility gaps (WCAG 2.2 AA dimensions)
+    5. Performance regressions (bundle/startup/memory drift)
+    6. UX / GUI polish opportunities (interactive-state coverage, motion,
+       microcopy, error-message specificity)
+    7. Theme coverage (dark-mode edge cases, interactive-state coverage
+       across all themes)
+    8. Community asks (last 90 days of issues/discussions/PRs — this repo
+       AND top 2 peers)
+    9. Platform / ecosystem shifts (deprecations on the clock)
+- Research output lands in `docs/research/iter-<N>-landscape.md`, one
+  section per dimension, marked UNTRUSTED DATA. Each ROADMAP task added by
+  L1b MUST cite which research dimension it came from.
+- If the project is a GUI app, the UX / theme / accessibility dimensions
+  get weighted higher in task ranking.
+- Iteration 2+ does DELTA research only — net-new findings since last iter.
 
 Lazy-load directives only when the phase that needs them fires:
   directive-audit.md             (L3/L4 fallback)
   directive-debate.md            (L3/L4 primary — three-role Grader/Critic/Defender)
   directive-circuit-breakers.md  (runs alongside every phase)
   directive-modularization.md    (M-phase — decompose monoliths, behavior-preserving)
-  directive-ux-polish.md         (U1/U2)
-  directive-theming.md           (T1/T2)
-  directive-dependency-scan.md   (D1/D2)
+  directive-ux-polish.md         (U1/U2 — GUI polish, interactive states, motion)
+  directive-theming.md           (T1/T2 — all-theme interactive-state coverage)
+  directive-dependency-scan.md   (D1/D2 — CVE scan + fix)
   directive-secret-scan.md       (every commit gate)
+  directive-logo.md              (P5 for new projects, G-phase for existing)
   recipe-ai-scrub.md             (S-phase on existing repos)
   recipe-release-build.md        (Q3 — project-type-aware build + sign + release)
 
 AUTO-DETECT:
 - No .git directory → NEW project. Run full preflight (scaffold + OSS research
   + logo + gh repo create --private + branch protection). S-phase auto-skips
-  (no prior history to scrub).
-- Has .git → EXISTING project. Pass --skip-preflight. S-phase auto-runs early
-  to scrub AI-reference history (autopilot: backup + apply + push; downgrades
-  to manual on multi-contributor or GPG-signed commits).
+  (no prior history to scrub). W-phase auto-skips (no WIP yet).
+- Has .git → EXISTING project. Pass --skip-preflight. W-phase auto-runs if
+  uncommitted work present. S-phase auto-runs early to scrub AI-reference
+  history (autopilot: backup + apply + push; downgrades to manual on
+  multi-contributor or GPG-signed commits). G-phase auto-runs if icon set
+  missing (SVG-via-Copilot primary, no OpenAI billing needed).
 - Pick the best stack for the problem on NEW projects (per "Best tool for the
   job" rule in ~/.claude/CLAUDE.md — do not default to Python or PowerShell).
   Load the matching stack-*.md after the decision.
@@ -69,27 +121,33 @@ AUTO-DETECT:
   stack-*.md.
 - Read repo CLAUDE.md + linked memory file + ROADMAP.md + rtk git log -20 before
   deciding the goal on EXISTING projects.
-- Derive the goal from repo state:
-    ROADMAP has unchecked items → advance them
-    Pending release → ship it
-    Open audit findings → close them
-    Empty / clean → hardening + polish pass (use --audit-only)
-- Derive iteration count:
+- Derive the goal from repo state AFTER running L1 research (research may
+  promote a different top priority than the current ROADMAP suggests):
+    ROADMAP has unchecked items + research surfaces high-impact additions
+      → advance ROADMAP with research additions prioritized
+    Pending release → ship it AFTER L3/L4 audit closes cleanly
+    Open audit findings → close them, then replenish + advance
+    Empty / clean → hardening + polish pass, still run full L1 research to
+      seed the next ROADMAP round
+- Derive iteration count (higher than prior defaults — default is heavy):
     NEW = 5 iterations
-    EXISTING with active roadmap = 3 iterations
-    EXISTING clean (no roadmap, no findings) = 1 iteration with --audit-only
+    EXISTING with active roadmap = 4 iterations
+    EXISTING clean (no roadmap, no findings) = 2 iterations (research + one
+      implementation cycle minimum — don't ship "nothing changed" runs)
   Stop-on-convergence and stop-on-regression fire regardless of the count.
 - Next version: current patch bump unless roadmap work is major/breaking (minor
   bump). Detect current via rtk grep on manifest/README badge. The single bump
   happens at Q3, NOT per iteration.
 - Scope guards: extract from repo CLAUDE.md + memory file charter language.
-  Reject ROADMAP items that violate the stated charter.
+  Reject ROADMAP items that violate the stated charter (tag as CHARTER-REVIEW
+  and defer — do NOT silently drop, the user may want to expand charter).
 
 EXECUTE:
   /octo:factory <THE_PATH_I_GAVE_YOU> --iterations <DETECTED_N> \
       [--skip-preflight] [--audit-only] [--skip-scrub] [--manual-scrub] \
-      [--skip-wip-adoption] [--single-session] [--require-orchestrator] \
-      [--task <id>] [--plan]
+      [--skip-wip-adoption] [--skip-logo] [--force-logo] [--raster-logo] \
+      [--single-session] [--require-orchestrator] \
+      [--task <id>] [--plan] [--final-codex-pass]
 
 EXECUTION MODE:
   On entry, detect whether the multi-provider orchestrator is available:
@@ -98,8 +156,8 @@ EXECUTION MODE:
     parallel agents, real three-role debate, full Gemini/Codex/Copilot fan-out).
   - Any prerequisite missing → SINGLE-SESSION mode (one Claude context runs
     every phase serially with declared degradations: L4/U2/T2 collapsed into
-    L3/U1/T1, debate falls back to rubric check, image gen deferred to manual
-    upload). Honest fallback, not silent degradation.
+    L3/U1/T1, debate falls back to rubric check, image gen still works via
+    Copilot-SVG path). Honest fallback, not silent degradation.
 
   In single-session mode, also check the scale gate:
   - >50K LOC OR >500 files OR >1000 tests OR >30 open ROADMAP items
@@ -130,6 +188,10 @@ HARD CAPS (backstop — the recipe has the full list):
 NEVER (backstop — the recipe has the full list):
 - Ask me to confirm scope, version, stack, theme, or iteration count — decide
   and proceed based on repo state
+- Burn Claude Max quota on bulk implementation when Copilot Sonnet 4.6 can
+  do it — that's a routing bug, offload it
+- Skip L1 research on existing projects just because the ROADMAP has items —
+  research ALWAYS runs and MAY replenish the ROADMAP with higher-leverage work
 - Skip the Definition of Done checklist in ~/.claude/CLAUDE.md before declaring
   anything done
 - Commit CLAUDE.md, CODEX_CHANGELOG.md, .claude/, or any AI-reference files
@@ -157,13 +219,15 @@ Begin.
 =============================================================================
 
 Run the factory loop in audit-only mode on the repo path I just gave you.
-Follow recipe-factory-loop.md. No clarifying questions.
+Follow recipe-factory-loop.md. No clarifying questions. Route audit work
+through Copilot GPT-5.3-Codex (copilot-heavy preset) — Claude Max escalates
+only on genuine ambiguity.
 
-Mode semantics (from the recipe): --audit-only skips P* (preflight), L1/L2
-(roadmap + implementation), U* (UX polish), T* (theming). Runs S* (auto-scrub),
-L3/L4 (three-role audit debate), L5 (doc drift sync), L7 (commit gate), D*
-(CVE/dep scan), and Q* (security → review → SLSA release with rollback +
-artifact smoke test).
+Mode semantics (from the recipe): --audit-only skips P* (preflight), G-phase
+(logo), L1/L2 (roadmap + implementation), U* (UX polish), T* (theming).
+Runs S* (auto-scrub), L3/L4 (three-role audit debate), L5 (doc drift sync),
+L7 (commit gate), D* (CVE/dep scan), and Q* (security → review → SLSA release
+with rollback + artifact smoke test).
 
   /octo:factory <THE_PATH_I_GAVE_YOU> --iterations 1 --audit-only
 
@@ -175,9 +239,24 @@ Begin.
 
 Generate the factory plan + cost estimate + expected commit count for the repo
 path I just gave you. Do NOT execute anything. Follow recipe-factory-loop.md's
---plan mode behavior.
+--plan mode behavior. Include the projected Copilot Premium Request count
+(research + implementation + audit) alongside the USD estimate so I can
+judge quota impact before kicking off.
 
   /octo:factory <THE_PATH_I_GAVE_YOU> --iterations <DETECTED_N> --plan
+
+Begin.
+
+=============================================================================
+ OPTIONAL: FINAL-CODEX-PASS VARIANT (release-day high-signal audit)
+=============================================================================
+
+On the final iteration before a release, run a direct-ChatGPT-Pro-Codex audit
+pass in addition to the Copilot audit. Catches things Copilot's gpt-5.3-codex
+can miss. Use this on release day, not on routine runs — burns ChatGPT Pro
+quota.
+
+  /octo:factory <THE_PATH_I_GAVE_YOU> --iterations <DETECTED_N> --final-codex-pass
 
 Begin.
 
