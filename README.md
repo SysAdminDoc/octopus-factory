@@ -243,6 +243,18 @@ docs/
 - **Atomic commits.** Per-task in Large-Repo Mode. Per-logical-change in normal mode. Never mega-commits.
 - **No AI-attribution in committed code.** The L7 commit gate enforces role-based commit messages; the AI-scrub recipe rewrites history of repos that already have attribution.
 
+## What this does that nothing else does
+
+A survey of related projects (Aider, Cline, OpenHands, RA.Aid, Continue, MetaGPT, LangGraph) found these to be the genuine differentiators:
+
+1. **Three-role debate with cross-family pinning.** Aider/Cline/OpenHands are single-model. The factory's audit phase runs Grader (cheap) + Critic (one premium family) + Defender (different premium family) with adaptive Beta-Binomial stopping.
+2. **Cross-provider quota fallback chain at the role level.** `copilot-fallback.sh` chains Claude → Codex → Gemini → Copilot per role with subscription/auth awareness. Aider has model fallback within one provider call; nobody else chains across providers per role.
+3. **Recipe + lazy-loaded directive split.** Closest to OpenHands microagents, but goes further: directives are role-scoped, not just keyword-triggered. Working context stays focused on the active phase rather than holding all behavioral guidance.
+4. **Holdout-scenario integrity check** (inherited from Octopus's `factory.sh`). Deterministic-shuffle 20% holdout with a cross-model evaluator. None of the agent tools have an integrity firewall against the implementer seeing the tests.
+5. **Cost-gated phase progression with auth-mode awareness.** Distinguishes API-billed vs subscription-included providers, then gates Q3 release on running total. Cline tracks cost; doesn't gate on it.
+
+See [ROADMAP.md](ROADMAP.md) for the prioritized list of integrations from those same projects (12 specific items with source citations and effort estimates).
+
 ## Caveats
 
 - **Premium AI subscriptions assumed.** The default `balanced` mode expects Claude Max + ChatGPT Pro + Copilot. The `copilot-only` preset works on Copilot alone. The `direct-only` preset works without Copilot.
