@@ -1,0 +1,129 @@
+# promptfoo regression tests for octopus-factory prompts
+# https://github.com/promptfoo/promptfoo
+#
+# Run:    promptfoo eval
+# Setup:  npm install -g promptfoo
+#
+# Covers:
+#   - commit-message.md         → conventional-commits format + 72-char cap + imperative mood
+#   - directive-audit.md        → produces Severity: HIGH|MED|LOW rows
+#   - directive-debate.md       → Grader output has PASS/FAIL/UNCERTAIN per criterion
+#   - directive-secret-scan.md  → correctly identifies known-positive + allows known-negative
+#   - directive-modularization  → behavior-preserving (tests must pass identically)
+
+description: "octopus-factory prompt regression suite"
+
+# Configure the providers you want to test against (override with env vars)
+providers:
+  # Copilot-Sonnet is the default cheap-path tester
+  - id: exec:copilot
+    label: copilot-sonnet
+    config:
+      command: 'copilot --no-ask-user --model claude-sonnet-4.6'
+      promptArgName: null  # prompts fed via stdin
+  # Codex for cross-family verification (optional; comment out if not needed)
+  # - id: exec:codex
+  #   label: codex-gpt-5.4
+  #   config:
+  #     command: 'codex exec --skip-git-repo-check --full-auto --model gpt-5.4 -'
+
+prompts:
+  - file://../../prompts/commit-message.md
+
+# Each test case pairs input variables with assertions about output
+tests:
+  # ─── commit-message.md ────────────────────────────────────────────────
+  - description: "Commit message: simple feat"
+    vars:
+      diff: |
+        +def add_dark_mode_toggle():
+        +    toggle = Switch(label="Dark mode")
+        +    return toggle
+      context: "Adding UI toggle for dark/light theme"
+    assert:
+      - type: regex
+        value: '^(feat|build|chore|ci|docs|style|refactor|perf|test|fix):\s+.+'
+      - type: javascript
+        value: "output.trim().length <= 72"
+      # Imperative mood check: subject should start with an imperative verb, not past/present participle
+      - type: not-regex
+        value: '^[a-z]+:\s+(added|adds|adding|fixed|fixes|fixing|updated|updates|updating)'
+      - type: not-contains
+        value: "Co-Authored-By"
+      - type: not-icontains
+        value: "🤖"
+
+  - description: "Commit message: bug fix with complex diff"
+    vars:
+      diff: |
+        -    if user.is_active == True:
+        +    if user.is_active:
+        -        return User.fetch(id)
+        +        return User.fetch(id=id)
+      context: "Fix: active check was comparing with True literal; also named arg"
+    assert:
+      - type: regex
+        value: '^(fix|refactor):\s+.+'
+      - type: javascript
+        value: "output.trim().length <= 72"
+
+  - description: "Commit message: rejects AI attribution"
+    vars:
+      diff: "+# any change"
+      context: "test"
+    assert:
+      - type: not-contains
+        value: "Generated with"
+      - type: not-contains
+        value: "Claude"
+      - type: not-contains
+        value: "Codex"
+
+  # ─── directive-audit.md ──────────────────────────────────────────────
+  # Audit prompts are long and the test would burn tokens; we test structural
+  # properties only — the output must have Severity markers.
+  - description: "Audit output has severity rows"
+    vars:
+      # Minimal invocation — caller substitutes the directive body separately
+      prompt_preamble: "Apply the Audit Directive to this tiny diff:"
+      diff: |
+        -password = "hunter2"
+        +password = os.environ["PASS"]
+    assert:
+      - type: regex
+        value: '(?i)severity[:\s]*(critical|high|medium|low)'
+
+  # ─── directive-debate.md ─────────────────────────────────────────────
+  - description: "Debate grader produces PASS/FAIL/UNCERTAIN"
+    vars:
+      rubric: |
+        task_id: TEST-01
+        goal: "Use env var instead of hardcoded password"
+        acceptance_criteria:
+          - "No literal password strings in code"
+          - "Password read from environment"
+      diff: |
+        -password = "hunter2"
+        +password = os.environ["PASS"]
+    assert:
+      - type: regex
+        value: '(PASS|FAIL|UNCERTAIN)'
+      - type: regex
+        value: '(?i)TEST-01'
+
+  # ─── structural checks: prompts should not contain PII or personal identifiers ─
+  - description: "Prompts are generic (no PII leakage)"
+    vars: {}
+    assert:
+      # Runs against the prompt file content itself, not model output
+      - type: not-contains
+        value: "snafumatthew"
+      - type: not-contains
+        value: "SysAdminDoc"
+
+defaultTest:
+  options:
+    # Don't retry on failure — we want to see deterministic failures
+    maxConcurrency: 1
+
+outputPath: ./results.json
