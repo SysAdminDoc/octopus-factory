@@ -7,7 +7,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 ## [Unreleased]
 
 ### Added
-- (track future improvements here)
+- `ROADMAP.md` with 12 prioritized integrations from related projects (Aider, Cline, OpenHands, LangGraph, gitleaks, osv-scanner, promptfoo, OpenTelemetry GenAI semconv) — each item cites the upstream source code with file paths so contributors can lift with attribution
+- `README.md` "What this does that nothing else does" section documenting 5 differentiators vs Aider/Cline/OpenHands/etc.
+- 5 GitHub issues opened for Tier 1 roadmap items (#1-#5), labeled `tier-1` plus `good-first-issue` on the easiest one
+
+### Changed
+- `README.md` rewritten with normalized voice (consistent second-person technical tone) and a worked Quick Example walkthrough showing a full ~25-min factory run end-to-end
 
 ---
 
