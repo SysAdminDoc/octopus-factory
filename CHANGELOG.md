@@ -11,6 +11,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ---
 
+## [0.3.0] — 2026-04-24
+
+Adds a logo/icon generation phase for existing projects (G-phase) and makes SVG-via-Copilot the primary path so OpenAI billing is no longer a prerequisite for icon work. Closes the "Images repo got no logo on first factory pass" bug.
+
+### Added
+- `memory/directives/directive-logo.md` — three-path logo/icon generation directive. Path 1 (primary): SVG-via-Copilot + ImageMagick rasterization (no OpenAI billing). Path 2: Codex `gpt-image-1` (opt-in via `--raster-logo`, photographic briefs only). Path 3: Gemini image (last resort). Emits 16/32/48/64/128/256/512/1024 PNGs + multi-res `.ico` + optional `.icns`. Stack-specific wiring documented for Chrome MV3, Firefox, Android adaptive icons, WPF `.csproj`, Python `.spec`, Web/PWA, README header.
+- **G-phase** in `memory/recipes/recipe-factory-loop.md` (between S-phase and the main loop). Runs on existing repos that lack an icon set. Steps G0-G7 cover gate, trigger detection, stack detection, directive application, wiring, atomic commit, state recording, and halt conditions.
+- `--skip-logo` / `--force-logo` / `--raster-logo` flags added to mode semantics table.
+
+### Changed
+- `memory/recipes/recipe-factory-loop.md` P5 (preflight logo for new projects) rewritten to delegate to `directive-logo.md` so new and existing projects follow the same path.
+- Provider routing table updated: icon/logo row now lists Copilot-SVG as primary, Codex `gpt-image-1` + Gemini as secondary fallbacks.
+- `--audit-only` flag documentation updated to note G-phase is also skipped under audit-only.
+- Single-session mode substitution table: P5/G-phase logo entry clarifies that Copilot-SVG works in single-session too (it shells out to `copilot --no-ask-user`), only the parallel fan-out is lost.
+- Guardrails list adds a bullet for the G-phase invariants.
+
+### Fixed
+- **Factory on existing repos now generates logos.** Previously `P5` lived in preflight only, so any `--skip-preflight` or existing-repo run never had a code path to icon generation. The Images repo session on 2026-04-24 triggered this — `state.yaml` read `P5 logo: deferred` with no recovery path.
+- **OpenAI billing is no longer a prerequisite for icon work.** Path 1 uses the Copilot subscription + ImageMagick for rasterization; `OPENAI_API_KEY` only matters if the user opts into `--raster-logo` for photographic briefs.
+
+### Verification
+
+- Recipe + directive + ROADMAP + CHANGELOG cross-references check: all six link anchors resolve.
+- No unauthorized key material references (`gitleaks dir` pending full repo scan in the commit gate).
+- Path 1 (SVG-via-Copilot) tested manually on the Images repo's CLAUDE.md brief during authoring — `copilot --no-ask-user --model claude-sonnet-4.6` produced a valid SVG that `xmllint --noout` accepted.
+- ImageMagick rasterization loop tested end-to-end against a sample SVG — all 8 PNG sizes + multi-res `.ico` generated on Windows (`magick` from Scoop).
+
+### Known limitations
+
+- macOS `.icns` generation requires `iconutil` (macOS-native) — Linux/Windows runs skip the `.icns` build with a warning.
+- Copilot CLI must be authenticated (`copilot auth login`) for Path 1. The G-phase does not re-authenticate silently; it halts with a diagnostic if the call returns unauthenticated.
+
+[0.3.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.3.0
+
 ## [0.2.0] — 2026-04-24
 
 All 12 ROADMAP items shipped in a single release. Tier 1 + Tier 2 + Tier 3 integrations land together. Closes issues #1-#5.
@@ -155,6 +189,6 @@ Initial public release. Full pipeline working end-to-end on Windows 11 + Git Bas
 - Linux Ubuntu 24.04 / Debian 12 / Arch — light testing
 - Provider stack: Claude Max, ChatGPT Pro Codex, Gemini Pro, GitHub Copilot
 
-[Unreleased]: https://github.com/SysAdminDoc/octopus-factory/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/SysAdminDoc/octopus-factory/compare/v0.3.0...HEAD
 [0.2.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.2.0
 [0.1.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.1.0

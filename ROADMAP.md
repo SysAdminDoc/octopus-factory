@@ -4,6 +4,28 @@ Prioritized integration plan based on a survey of related projects (Aider, Cline
 
 Each item cites the upstream source so contributors can lift code with attribution. Items are ordered by leverage — highest-impact first.
 
+## v0.3.0 — shipped 2026-04-24
+
+### G-phase logo/icon generation for existing projects (no OpenAI billing required)
+
+**Status:** shipped in v0.3.0
+**Why:** Preflight `P5` only runs on NEW repos — existing repos that joined the factory without a logo had no way to acquire one through the pipeline. The prior raster-first path also assumed a working `OPENAI_API_KEY`, which blocked runs whenever the key was missing or rate-limited. This phase gives existing repos a code path to a full icon set while making OpenAI billing strictly optional.
+
+**What shipped:**
+- `memory/directives/directive-logo.md` — three-path generation directive. **Path 1 (default): SVG-via-Copilot + ImageMagick rasterization** (no image API, no OpenAI billing — Copilot subscription covers it). Path 2: Codex `gpt-image-1` (opt-in via `--raster-logo` for photographic briefs). Path 3: Gemini image as last resort. Includes stack-specific wiring for Chrome MV3, Firefox, Android adaptive icons, WPF `.csproj`, Python `.spec`, Web/PWA.
+- `memory/recipes/recipe-factory-loop.md` — new G-phase block (G0-G7) that runs between S-phase (scrub) and the main loop on existing repos. Auto-skips when icon set already present and fresh. Force override via `--force-logo`. Skip via `--skip-logo`. Raster opt-in via `--raster-logo`.
+- `memory/recipes/recipe-factory-loop.md` — P5 (preflight, new projects) rewritten to delegate to the same directive so both new and existing projects follow one path.
+
+**Gate logic:**
+- Skips automatically when `assets/icons/icon.svg` + all raster sizes already exist AND CLAUDE.md doesn't flag as stale.
+- Skips when repo declares "brand-less" in its CLAUDE.md.
+- Runs on `--force-logo` even if icons exist (archives the old set first).
+- Halts loud on missing ImageMagick — never silently degrades.
+
+**Closes:** the "Images repo got no logo on first factory pass" bug the user hit 2026-04-24.
+
+---
+
 ## Tier 1 — high leverage, ship soon
 
 ### 1. SQLite-backed checkpointing for crash recovery + resume

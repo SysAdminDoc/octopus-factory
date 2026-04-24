@@ -26,8 +26,10 @@ Full-project autonomous run across Claude + Codex + Gemini + Copilot. Gated by b
 | Define / develop / counter-audit / build | **Claude Max** | Copilot (auto-fallback) |
 | Review / security / UX / Theming audit | **Codex** (ChatGPT Pro, gpt-5.4) | Copilot (auto-fallback) |
 | Deliver + universal fallback | **Copilot** | — |
-| Image / logo | **Codex** (gpt-image-1, transparent PNG) | **Gemini** (gemini-3-pro-image-preview) |
+| Icon / logo (geometric, primary path) | **Copilot** (SVG generation → ImageMagick rasterize) | **Codex** (`gpt-image-1`) → **Gemini** (`gemini-3-pro-image-preview`) |
 | Counter-pass on any Codex phase | **Claude Max** | — |
+
+**Icon/logo path policy.** The default is Path 1 (SVG via Copilot) — no OpenAI billing required and most project icons are geometric. Only fall through to Path 2 (Codex `gpt-image-1`) on explicit `--raster-logo` flag or when the brief calls for photographic content. See [directive-logo.md](directive-logo.md).
 
 Swap routing: `~/.claude-octopus/bin/octo-route.sh <mode>` (balanced / claude-heavy / codex-heavy / direct-only / copilot-only).
 
@@ -45,6 +47,7 @@ Each phase reads only the directive it needs — keeps working context focused.
 | [directive-dependency-scan.md](directive-dependency-scan.md) | D1, D2 |
 | [directive-secret-scan.md](directive-secret-scan.md) | every commit gate |
 | [directive-modularization.md](directive-modularization.md) | M-phase (decompose monoliths into well-organized modules; behavior-preserving) |
+| [directive-logo.md](directive-logo.md) | G-phase (existing projects missing icons) and P5 (new projects) |
 | [recipe-ai-scrub.md](recipe-ai-scrub.md) | S-phase (history cleanup between preflight and loop) |
 | [recipe-release-build.md](recipe-release-build.md) | Q3 (project-type-aware build + sign + release pipeline) |
 
@@ -172,7 +175,7 @@ fallback beats pretending to run the orchestrated version.
 | T1 theming first pass | Codex | Claude does it |
 | T2 theming counter-pass | Claude | **SKIPPED** — same-model duplication |
 | Three-role debate (full L3/L4) | Grader + Critic + Defender (heterogeneous) | Falls back to single-pass rubric check by Claude (Grader-only). No debate. |
-| P5 logo | `codex:image` (gpt-image-1) | **DEFERRED** — write a logo brief to `assets/logo-prompt.md` with style requirements + sizes. User generates manually via ChatGPT web or DALL-E and drops PNGs into `assets/icons/`. Recipe wires the assets into manifest/README on next run. |
+| P5 / G-phase logo | Copilot-SVG (Path 1) → codex `gpt-image-1` → gemini fallback | Copilot-SVG still works (it just shells out to `copilot --no-ask-user`) — single-session mode only loses the parallel fan-out. Paths 2/3 remain available if keys are present; otherwise write a logo brief to `assets/logo-prompt.md` and defer. |
 
 **Repo-scale gate (single-session only) — auto-engages Large-Repo Mode:**
 
@@ -352,12 +355,13 @@ P3b. claude: augment pass on P3a — critical analysis, gap identification, synt
      Write a concise summary (max 300 words) to repo CLAUDE.md noting at least one axis
      where this project beats the best existing option. Do NOT paste raw research into CLAUDE.md.
 P4. claude: seed ROADMAP.md with ~20 tasks, tagged P0/P1/P2, grouped by phase.
-P5. codex:image (primary) → gemini:image (fallback): generate 5 logo prompts, pick best,
-    produce SVG + transparent-background PNG at 16/32/48/128/512 + favicon → assets/icons/.
-    Primary is OpenAI gpt-image-1 (native transparent-background, requires OPENAI_API_KEY
-    in env or ~/.codex/auth.json). If billing_hard_limit_reached or key missing, fall
-    through to gemini:image and post-process to strip background. Wire into README header
-    + manifest/Android adaptive/web base64 favicon in a single pass.
+P5. Apply [directive-logo.md](directive-logo.md): generate full icon set via
+    SVG-via-Copilot (Path 1, default) → rasterize with ImageMagick to
+    16/32/48/64/128/256/512/1024 PNGs + .ico + optional .icns + favicon → `assets/icons/`.
+    Only fall through to Path 2 (codex gpt-image-1) on --raster-logo or photographic
+    brief, Path 3 (gemini:image) as last resort. Wire into README header + manifest /
+    Android adaptive / web favicon / PWA manifest in a single pass per the directive's
+    stack-specific wiring section.
 P6. rtk git init.
     **Repo visibility: DEFAULT PRIVATE.** Public only if spec explicitly says --public.
     rtk gh repo create <PROJECT> --private --source . --push (or --public if opted in).
@@ -505,6 +509,79 @@ S5. Post-apply:
     - Proceed to main loop. All NEW commits from this point forward are clean by
       the commit gate (no AI references, no Co-Authored-By) per L7 rules and
       directive-secret-scan.md.
+
+# === LOGO PHASE (runs on existing projects that have no icon set; new projects use P5 in preflight) ===
+G0. Gates (skip phase if ANY is true):
+    - Project is NEW (P5 handled it during preflight this same run)
+    - `assets/icons/icon.svg` exists AND all required raster sizes
+      (16/32/48/64/128/256/512/1024) exist AND not flagged stale in repo CLAUDE.md
+      "Module map / Assets" section
+    - Repo is explicitly brand-less (repo CLAUDE.md says so)
+    - User passed `--skip-logo`
+    Force override: `--force-logo` runs the phase even when icons exist (archives
+    the old set to `assets/icons/old-<timestamp>/` first — never destroys without
+    a local copy).
+
+G1. Detect trigger conditions (any one qualifies unless already gated out):
+    - `assets/icons/icon.svg` missing AND `assets/icons/icon-512.png` missing
+    - Repo CLAUDE.md punch list contains "logo" / "icon" / "branding" bullet
+    - Q4 continuation brief from a prior run flagged logo as deferred
+    - Release-build recipe P5 preflight halted because icons missing
+    - `--force-logo` flag was passed
+
+G2. Stack detection (same logic as Q3 release build Phase 1):
+    - Chrome MV3 extension (manifest.json with manifest_version:3) →
+      wire icons into manifest `icons` + `action.default_icon`, produce
+      16/32/48/128 PNGs (MV3 canonical sizes).
+    - Firefox extension → same MV3 paths plus `browser_specific_settings.gecko`.
+    - Android → produce adaptive-icon foreground SVG + solid background color,
+      wire into `mipmap-*/ic_launcher.png` + `mipmap-*/ic_launcher_round.png` +
+      `drawable/ic_launcher_foreground.xml`.
+    - C# WPF / .NET → wire `<ApplicationIcon>assets\icons\icon.ico</ApplicationIcon>`
+      into `.csproj` + add `<Resource Include>` entry.
+    - Python (PyInstaller / PyQt) → wire `icon=` into `.spec` file, set
+      `QApplication.setWindowIcon(QIcon("assets/icons/icon.png"))` in entry point.
+    - Web / PWA → wire `<link rel="icon">` + favicon 16/32 + apple-touch-icon +
+      manifest.json icons 192/512.
+    - README → center-aligned 128×128 icon in README header per directive-logo.md.
+
+G3. Apply [directive-logo.md](directive-logo.md):
+    - Path 1 default: SVG-via-Copilot. Prompt derived from repo CLAUDE.md
+      description + any branding palette in the Module map. Claude writes
+      the prompt; Copilot generates the SVG; ImageMagick rasterizes.
+    - Path 2 only if `--raster-logo` OR brief explicitly calls for photography.
+    - Path 3 only if Paths 1 and 2 both fail.
+    - Validate: `xmllint --noout assets/icons/icon.svg` must succeed; every PNG
+      must be readable by `magick identify`; `.ico` must contain at least one size.
+
+G4. Wire generated assets per the stack detection in G2. Update repo CLAUDE.md
+    "Assets" / "Module map" section to record the canonical source paths so
+    future runs auto-skip via G0.
+
+G5. Commit gate (L7 rules apply):
+    - Secret scan over `assets/icons/` (catches nothing normally but enforces
+      the invariant).
+    - Sacred-cow scan — an existing signed Chrome extension `.pem` is
+      untouchable; G-phase edits `.png` / `.ico` / `.svg` only.
+    - Role-based message: `assets: add icon set (svg + rasterized png + ico)`
+      on fresh additions, `assets: refresh icon set` when --force-logo replaced
+      an existing set.
+    - One atomic commit per logo set (all sizes, all wiring changes). No
+      per-size commits. Push immediately.
+
+G6. Record in `.factory/state.yaml`:
+    - logo_phase_run_at: <timestamp>
+    - logo_path_used: svg-copilot | codex-gpt-image-1 | gemini-image
+    - logo_sizes_generated: [16, 32, 48, 64, 128, 256, 512, 1024]
+    - logo_stack_wired: [chrome-mv3, android, csharp-wpf, python, web, readme]
+
+G7. Halt conditions (fail loud; do NOT silently continue):
+    - ImageMagick missing → halt with install instructions per directive (brew /
+      apt / scoop / winget / docker fallback).
+    - All three generation paths fail (Copilot rate-limited + no OPENAI_API_KEY +
+      Gemini empty output) → write `assets/logo-prompt.md` brief for manual
+      generation, log as deferred, proceed (does NOT block the rest of the run).
+    - SVG validation fails after 3 retries → fall through to Path 2.
 
 # === LOOP (N iterations, stop-early on convergence) ===
 L1a. gemini:
@@ -683,7 +760,7 @@ Q4. Continuation brief appended to repo CLAUDE.md: current state / done this run
 |---|---|
 | (none) | Full pipeline: Preflight + Loop + UX + Theming + Dep + Postflight. |
 | `--skip-preflight` | Skip P* (existing repo). Loop + UX + Theming + Dep + Postflight run. |
-| `--audit-only` | Skip P* + L1/L2 + U* + T*. Run S* + L3/L4/L5/L7 + D* + Q*. |
+| `--audit-only` | Skip P* + G* + L1/L2 + U* + T*. Run S* + L3/L4/L5/L7 + D* + Q*. |
 | `--plan` | Generate plan + cost estimate + commit forecast, exit without executing. |
 | `--skip-scrub` | Skip the S-phase entirely. Use when you explicitly want to preserve the AI-attributed history (rare — e.g. for a portfolio demo that highlights the AI collaboration). |
 | `--manual-scrub` | Run S-phase but pause for interactive confirmation at apply + push. Default is autopilot (auto-apply + auto-push with full backups). |
@@ -697,6 +774,9 @@ Q4. Continuation brief appended to repo CLAUDE.md: current state / done this run
 | `--force-ux` / `--force-theming` / `--force-dep-scan` | Force the named phase to run regardless of Large-Repo Mode's rotation schedule. |
 | `--skip-modularization` | Skip the M-phase entirely. |
 | `--force-modularization` | Force M-phase to run regardless of rotation/gate schedule. |
+| `--skip-logo` | Skip the G-phase entirely (existing repos with no icon set). New-project P5 still honors the flag and defers. |
+| `--force-logo` | Run the G-phase even when an icon set is already present. Archives the existing set to `assets/icons/old-<timestamp>/` before regenerating. |
+| `--raster-logo` | Skip Path 1 (SVG-via-Copilot) and use Path 2 (`gpt-image-1`) directly. For photographic / complex-composition icons only. Requires `OPENAI_API_KEY`. |
 
 ## Future Work (documented, not yet implemented)
 
@@ -735,6 +815,7 @@ Both are "phase 2" improvements — apply once the current single-machine pipeli
 - **Execution mode auto-detects** on entry. Orchestrated mode requires orchestrate.sh + provider CLIs + providers.json. Falls through to single-session mode (degraded but honest) if any prerequisite is missing. Override with `--single-session` to force, `--require-orchestrator` to refuse the fallback.
 - **Large-Repo Mode auto-engages** when the scale gate trips (50K LOC / 500 files / 1K tests / 30 ROADMAP items). Recipe self-modifies: 1 iteration per run, 3 tasks per run, per-task atomic commits, rotated U/T/D phases, persistent state in `.factory/large-repo-state.yaml`. N invocations incrementally drain the ROADMAP. Override with `--halt-on-scale` if you want the old halt-and-ask behavior.
 - **WIP adoption phase auto-runs** on existing repos with uncommitted work. Classifies changes (sensitive / sacred-cow / lockfile / docs / config / test / code), runs commit gates per group, commits each clean group with role-based messages, pushes, and records quarantine manifest for skipped items. Halts on mid-merge / mid-rebase / mid-cherry-pick. Mid-operation states require human resolution. Override with `--skip-wip-adoption`.
+- **Logo phase (G-phase) auto-runs** on existing projects that are missing an icon set. Default path is SVG-via-Copilot + ImageMagick rasterization — no OpenAI billing required. Falls through to `gpt-image-1` only on `--raster-logo` or photographic brief, Gemini as last resort. Halts loud (never silently succeeds) if ImageMagick is missing. Override with `--skip-logo` / `--force-logo`. New projects run P5 in preflight instead; both phases use the same [directive-logo.md](directive-logo.md).
 - **Scrub phase auto-runs** on existing repos unless `--skip-scrub` is passed. New projects (≤3 commits) skip the phase. Default is autopilot (auto-apply + auto-push); `--manual-scrub` downgrades to interactive. Multi-contributor or signed-commit detection force manual mode even in autopilot. Bundle + remote backup branch created before any rewrite — rollback always possible via `rtk git bundle unbundle` or `rtk git checkout pre-ai-scrub-<timestamp>`.
 
 ## Tunable Caps
