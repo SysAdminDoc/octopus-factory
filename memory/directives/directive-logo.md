@@ -24,7 +24,18 @@ The G-phase picks Path 1 by default because most project icons are geometric, no
 
 ### Why SVG first
 
-Project icons (app icons, favicons, file-browser marks) are almost always geometric. LLMs write clean SVG better than they generate 1024×1024 pixel art. SVG is lossless, scales to every size the project needs, and rasterizes deterministically.
+Project icons (app icons, favicons, file-browser marks) are almost always geometric. LLMs write clean SVG better than they generate 1024×1024 pixel art. SVG is lossless, scales to every size the project needs, and rasterizes deterministically — including clean alpha transparency on every output PNG, which raster-first paths sometimes flatten without warning.
+
+### Output format requirements (every path)
+
+Every path below ships the same set of artifacts:
+- **Master SVG** at `assets/icons/icon.svg` — no background fill, no full-canvas rect
+- **Raster PNGs** at `assets/icons/icon-{16,32,48,64,128,256,512,1024}.png` — RGBA color-type 6 with genuine alpha channel (transparency outside the glyph)
+- **Windows `.ico`** multi-res bundle preserving the RGBA channels from the source PNGs
+- **macOS `.icns`** bundle (if `iconutil` is on PATH)
+- **Favicon** `favicon-16.png` / `favicon-32.png` copies
+
+PNG format is the only acceptable raster. No JPEG (no alpha). No flattened PNG (defeats the purpose). Post-generation verification via `magick identify -format '%[channels]'` is non-optional.
 
 ### Generation
 
@@ -34,21 +45,56 @@ PROMPT="Design a minimal professional app icon for <PROJECT>.
 Description: <ONE-LINE DESCRIPTION>
 Style: <geometric / flat / glyph / emblem — pick one>
 Palette: <from repo CLAUDE.md branding, or a minimal 2-color palette>
-Constraints:
-- viewBox=\"0 0 512 512\"
-- Single clean geometric shape (no gradients, no complex paths)
-- Works at 16×16 to 512×512
-- High contrast for small sizes
-- Transparent background
-Output: raw SVG only, no wrapper markdown or explanation."
+
+OUTPUT FORMAT (NON-NEGOTIABLE):
+- Raw SVG markup only. No markdown fences, no explanation, no prose.
+- Root element MUST be <svg> with viewBox=\"0 0 512 512\" and no width/height
+  attributes (so rasterizer can pick any size).
+- TRANSPARENT BACKGROUND — absolutely no <rect> / <path> / <polygon> / <circle>
+  that covers the full 512×512 canvas as a background fill. The area OUTSIDE
+  the icon's actual shape must remain empty (no element, no fill) so the
+  rasterized PNGs have a true alpha channel.
+- Do NOT set fill=\"white\" / fill=\"black\" / style=\"background:...\" on the
+  root <svg> or any outer <g>.
+- Icon content fills approximately 75-85% of the viewBox (leave breathing
+  room so the icon doesn't touch edges when rendered inside rounded masks
+  like macOS / Android adaptive icons).
+
+DESIGN CONSTRAINTS:
+- Single clean geometric shape (no gradients, no complex paths, no text).
+- Works identically at 16×16 and 512×512 — no detail that vanishes small.
+- High contrast; readable against both light AND dark UI surfaces
+  (since the background is transparent, the icon lands on whatever color
+  the OS / site / app chrome provides).
+- Strokes: if used, width ≥ 24 px in 512-space so they survive 16×16 downscale.
+
+DELIVERABLE:
+- A single valid SVG document. Nothing before <?xml or <svg. Nothing after </svg>.
+"
 
 echo "$PROMPT" | copilot --no-ask-user --model claude-sonnet-4.6 > assets/icons/icon.svg
 # OR: copilot --no-ask-user --model gpt-5.4 (whichever your preset routes to)
 ```
 
-Validate the output parses as SVG before committing:
+Validate the output parses as SVG AND has no background-fill rectangle before
+rasterizing:
 ```bash
+# (1) SVG must parse
 xmllint --noout assets/icons/icon.svg || { echo "invalid SVG, retry"; exit 1; }
+
+# (2) Reject background-covering full-canvas rectangles that would defeat
+#     transparency. Any <rect width="512" ... x="0" y="0" ...> or similar
+#     is almost always a background fill that needs to go.
+if grep -Eq '<rect[^>]*(width="100%"|width="512")[^>]*(height="100%"|height="512")' assets/icons/icon.svg; then
+    echo "SVG contains a full-canvas <rect> — likely an opaque background. Retry prompt."
+    exit 1
+fi
+
+# (3) Reject fill on root <svg> element (would paint the whole canvas)
+if grep -Eq '<svg[^>]*(fill=|style="[^"]*background)' assets/icons/icon.svg; then
+    echo "SVG root has a fill/background attribute — likely paints the canvas. Retry."
+    exit 1
+fi
 ```
 
 ### Rasterization to required sizes
@@ -56,14 +102,39 @@ xmllint --noout assets/icons/icon.svg || { echo "invalid SVG, retry"; exit 1; }
 ```bash
 mkdir -p assets/icons/
 
-# Rasterize to standard PNG sizes via ImageMagick
+# Rasterize to standard PNG sizes via ImageMagick.
+#
+# Flag explainer:
+#   -background none          transparent compositing background (no white fill)
+#   -density 384              SVG rasterizes at high DPI first, then downscales
+#                             cleanly (avoids blurry edges at small sizes)
+#   -size WxH                 target canvas size
+#   PNG32:                    force 32-bit RGBA output with explicit alpha
+#                             channel (prevents some ImageMagick builds from
+#                             flattening to RGB for "optimization")
+#   -define png:color-type=6  belt-and-braces: RGBA color-type
 for size in 16 32 48 64 128 256 512 1024; do
-    magick -background none -size ${size}x${size} \
+    magick -background none -density 384 -size ${size}x${size} \
         assets/icons/icon.svg \
-        assets/icons/icon-${size}.png
+        -define png:color-type=6 \
+        PNG32:assets/icons/icon-${size}.png
 done
 
-# Build multi-resolution .ico (Windows)
+# Verify every rasterized PNG has a real alpha channel (no silent flatten).
+for size in 16 32 48 64 128 256 512 1024; do
+    channels=$(magick identify -format '%[channels]' "assets/icons/icon-${size}.png")
+    case "$channels" in
+        rgba|srgba|graya) ;;  # good
+        *)
+            echo "icon-${size}.png has no alpha channel (channels=$channels)"
+            echo "Rasterize step failed to preserve transparency. Halt."
+            exit 1
+            ;;
+    esac
+done
+
+# Build multi-resolution .ico (Windows) — .ico supports alpha since Vista,
+# and magick preserves it when the source PNGs have color-type=6.
 magick assets/icons/icon-16.png \
        assets/icons/icon-32.png \
        assets/icons/icon-48.png \
@@ -106,22 +177,56 @@ Halt G-phase if ImageMagick missing and user hasn't opted into manual icon drop.
 
 For photorealistic / complex imagery only. Requires `OPENAI_API_KEY` in env or `~/.codex/auth.json`.
 
+The prompt text MUST explicitly demand transparent background even though the
+API-level `"background": "transparent"` flag is set — the model's output
+honors both signals much more reliably when they agree:
+
 ```bash
+PROMPT='Design a minimal professional app icon for <PROJECT>.
+Description: <brief from repo CLAUDE.md branding section>
+
+OUTPUT REQUIREMENTS (NON-NEGOTIABLE):
+- FORMAT: PNG with alpha channel (RGBA). No JPEG, no flattened PNG.
+- BACKGROUND: FULLY TRANSPARENT. No background color, no white fill, no
+  canvas-covering rectangle. Only the icon glyph is opaque; every pixel
+  outside the glyph must have alpha=0.
+- No border, no frame, no drop shadow on the canvas edge.
+- Icon content fills 75-85% of the canvas — leave transparent breathing
+  room at the edges so the icon survives rounded-square masking on
+  macOS / Android adaptive icons.
+- High contrast. The icon must read on both light and dark UI surfaces
+  (since the background is transparent, it will land on whatever the
+  OS/app chrome provides).
+- Single clean shape. No text (unless brief explicitly calls for a wordmark).'
+
 curl -s https://api.openai.com/v1/images/generations \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-image-1",
-    "prompt": "<brief from repo CLAUDE.md branding section>",
-    "size": "1024x1024",
-    "background": "transparent",
-    "n": 1
-  }' | jq -r '.data[0].b64_json' | base64 -d > assets/icons/icon-1024.png
+  -d "{
+    \"model\": \"gpt-image-1\",
+    \"prompt\": $(jq -Rs . <<< "$PROMPT"),
+    \"size\": \"1024x1024\",
+    \"background\": \"transparent\",
+    \"output_format\": \"png\",
+    \"n\": 1
+  }" | jq -r '.data[0].b64_json' | base64 -d > assets/icons/icon-1024.png
 
-# Downsize to other standard sizes
+# Verify the returned PNG actually has an alpha channel.
+channels=$(magick identify -format '%[channels]' assets/icons/icon-1024.png)
+case "$channels" in
+    rgba|srgba|graya) ;;
+    *)
+        echo "gpt-image-1 returned a flattened PNG (channels=$channels)."
+        echo "Retry prompt emphasis once, or fall through to Path 3."
+        exit 1
+        ;;
+esac
+
+# Downsize to other standard sizes, forcing RGBA PNG output on each.
 for size in 16 32 48 64 128 256 512; do
     magick assets/icons/icon-1024.png -resize ${size}x${size} \
-        assets/icons/icon-${size}.png
+        -define png:color-type=6 \
+        PNG32:assets/icons/icon-${size}.png
 done
 # Then build .ico / .icns as in Path 1
 ```
@@ -133,9 +238,30 @@ If the API returns `billing_hard_limit_reached` or `insufficient_quota`, **do no
 ```bash
 gemini -m gemini-3-pro-image-preview \
   -p "Design a minimal professional app icon for <PROJECT>.
-      Transparent background. 1024×1024 PNG." \
+
+OUTPUT FORMAT: PNG with alpha channel (RGBA). 1024×1024 pixels.
+BACKGROUND: FULLY TRANSPARENT. alpha=0 everywhere outside the icon glyph.
+No background color, no white/black fill, no canvas-covering rectangle.
+Icon content fills 75-85% of the canvas with transparent padding around it.
+High contrast so it reads on both light and dark UI surfaces.
+Single clean geometric shape. No text unless a wordmark is explicitly requested." \
   --approval-mode yolo \
   -o image > assets/icons/icon-1024.png
+
+# Verify alpha channel survived (same check as Path 2)
+channels=$(magick identify -format '%[channels]' assets/icons/icon-1024.png)
+case "$channels" in
+    rgba|srgba|graya) ;;
+    *)
+        echo "Gemini returned a flattened PNG (channels=$channels)."
+        echo "Post-process with background removal, or halt and defer to manual."
+        # Optional salvage: try to key out near-white or near-black background
+        # before giving up:
+        # magick assets/icons/icon-1024.png -fuzz 5% -transparent white \
+        #     -define png:color-type=6 PNG32:assets/icons/icon-1024.png
+        exit 1
+        ;;
+esac
 ```
 
 Requires `GEMINI_API_KEY` (OAuth-tier Gemini CLI only exposes text models). If unavailable, halt G-phase and write a logo brief to `assets/logo-prompt.md` for the user to generate manually.
@@ -227,9 +353,10 @@ Record the icon set's canonical location so future factory runs don't regenerate
 ## Non-Negotiable Rules
 
 - **Never overwrite an existing signed icon** (e.g., Chrome extension with established extension ID — replacing the icon changes user-facing identity but not the ID; replacing the `.pem` orphans users). Safe to replace `.png` and `.ico` if the `.pem` / keystore stays intact.
-- **Transparent backgrounds mandatory** for PNG icons unless the project explicitly specifies otherwise.
+- **Transparent backgrounds are mandatory** for every PNG icon the factory ships. The prompt text MUST say so on every generation path (SVG, gpt-image-1, Gemini). The rasterizer MUST force `PNG32:` + `png:color-type=6` so alpha survives compositing. The post-rasterize step MUST verify `magick identify -format '%[channels]'` returns `rgba` / `srgba` / `graya` — any other channel value means the PNG was flattened and the icon set is invalid.
+- **Output format is PNG (RGBA) for raster** and **SVG (no background fill)** for the vector master. No JPEG, no BMP, no flattened PNG. The only opaque deliverable is `.ico` (which itself stores RGBA frames).
 - **Record the source path** (SVG master or raster master) in repo CLAUDE.md so future regenerations aren't blind.
-- **Validate before committing** — SVG must parse, PNGs must be readable by ImageMagick `identify`, .ico must contain at least one size.
+- **Validate before committing** — SVG must parse, PNGs must be readable by ImageMagick `identify` AND have an RGBA channel set, .ico must contain at least one size.
 - **Per-size commit not required** — one atomic commit with all sizes is fine: `assets: add icon set (SVG + rasterized PNGs + .ico)`.
 - **Secret scan + sacred-cow gates apply** (per directive-secret-scan.md + circuit-breakers).
 

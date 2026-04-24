@@ -11,6 +11,53 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ---
 
+## [0.4.1] — 2026-04-24
+
+Hardens the logo/icon generation directive so transparent background + PNG
+(RGBA) output is non-negotiable across all three paths. Every prompt now says
+so explicitly, every rasterizer forces `PNG32:` + `png:color-type=6`, and
+every path has a post-generation alpha-channel verification step that halts
+on flattened output.
+
+### Changed
+- `memory/directives/directive-logo.md`:
+  - Path 1 (SVG-via-Copilot) prompt rewritten with explicit NON-NEGOTIABLE
+    output format block: transparent background, no full-canvas `<rect>`, no
+    root `<svg>` fill, 75-85% content fill, stroke ≥ 24px in 512-space.
+  - Post-SVG validation now rejects full-canvas background rectangles and
+    fill-on-root-svg before rasterizing.
+  - Rasterization block upgraded: `-density 384` for clean SVG→PNG downscale,
+    `PNG32:` output prefix + `-define png:color-type=6` to guarantee RGBA,
+    post-loop channel verification via `magick identify -format '%[channels]'`.
+  - Path 2 (gpt-image-1) prompt rewritten: explicit PNG+RGBA + alpha=0
+    outside glyph requirement, `output_format: png` added to API payload
+    alongside existing `background: transparent`, post-download alpha
+    verification.
+  - Path 3 (Gemini) prompt rewritten with same PNG/RGBA/transparency
+    requirements + optional salvage step (`-fuzz 5% -transparent white`)
+    documented before halting.
+  - "Why SVG first" section now declares the exact artifact set every path
+    must produce (master SVG + 8 RGBA PNGs + `.ico` + `.icns` + favicon).
+  - Non-Negotiable Rules expanded: transparency + PNG(RGBA) + alpha-channel
+    verification are stated as three hard requirements instead of one soft
+    one.
+
+### Why
+
+PNG output from image-generation APIs sometimes flattens to RGB when the
+model interprets "transparent background" loosely. The prior directive
+caught this only at the `magick identify` validation step with no
+actionable remedy. This release strengthens every prompt to demand
+transparent PNG explicitly, adds channel-verification at each rasterization
+step, and documents a salvage path for near-solid backgrounds before
+halting.
+
+Also updates `~/CLAUDE.md` "Branding & Logo Generation" section (user's
+global instructions, separate file) so every project — not just factory
+runs — follows the same transparency + PNG(RGBA) contract.
+
+[0.4.1]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.4.1
+
 ## [0.4.0] — 2026-04-24
 
 Default workflow rebalanced: Copilot-heavy is now canonical, L1 research is
@@ -262,6 +309,6 @@ Initial public release. Full pipeline working end-to-end on Windows 11 + Git Bas
 - Linux Ubuntu 24.04 / Debian 12 / Arch — light testing
 - Provider stack: Claude Max, ChatGPT Pro Codex, Gemini Pro, GitHub Copilot
 
-[Unreleased]: https://github.com/SysAdminDoc/octopus-factory/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/SysAdminDoc/octopus-factory/compare/v0.4.1...HEAD
 [0.2.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.2.0
 [0.1.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.1.0
