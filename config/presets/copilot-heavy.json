@@ -1,0 +1,78 @@
+{
+  "version": "3.0",
+  "_mode": "copilot-heavy",
+  "_description": "Maximize Copilot quota usage to offload Claude Max (Opus 4.7) and ChatGPT Pro Codex direct API. Routes all routine work through Copilot's Sonnet 4.6 (build/define/counter-audit) and gpt-5.3-codex (audit/UX/theming/security). Direct Claude Max only fires when escalated for hard reasoning. Direct ChatGPT Pro Codex unused. Gemini Flash retained for research. Image gen still routes to Codex gpt-image-1 (uses OPENAI_API_KEY, not Copilot).",
+  "providers": {
+    "codex": {
+      "default": "gpt-5.4",
+      "fallback": "gpt-5.4-mini",
+      "spark": "gpt-5.4",
+      "mini": "gpt-5.4-mini",
+      "reasoning": "o3",
+      "large_context": "gpt-5.4",
+      "image": "gpt-image-1"
+    },
+    "gemini": {
+      "default": "gemini-2.5-flash",
+      "fallback": "gemini-2.5-flash",
+      "flash": "gemini-2.5-flash",
+      "image": "gemini-3-pro-image-preview"
+    }
+  },
+  "routing": {
+    "phases": {
+      "discover": "gemini:default",
+      "discover_augment": "copilot-sonnet",
+      "define": "copilot-sonnet",
+      "develop": "copilot-sonnet",
+      "deliver": "copilot-sonnet",
+      "review": "copilot-codex",
+      "security": "copilot-codex",
+      "ux": "copilot-codex",
+      "theming": "copilot-codex",
+      "research": "gemini:default",
+      "research_augment": "copilot-sonnet"
+    },
+    "roles": {
+      "researcher": "gemini:default",
+      "researcher_augment": "copilot-sonnet",
+      "image": "codex:image",
+      "image_fallback": "gemini:image",
+      "counter-audit": "copilot-sonnet",
+      "ux_counter_polish": "copilot-sonnet",
+      "theming_counter_polish": "copilot-sonnet",
+      "builder": "copilot-sonnet",
+      "escalate-to-opus": "claude"
+    }
+  },
+  "tiers": {
+    "budget": { "codex": "mini", "gemini": "flash" },
+    "standard": { "codex": "default", "gemini": "default" },
+    "premium": { "codex": "default", "gemini": "default" }
+  },
+  "overrides": {},
+  "_offload_strategy": {
+    "primary_quota_burned": "GitHub Copilot Premium Requests",
+    "preserved_quotas": ["Claude Max (Opus 4.7)", "ChatGPT Pro (direct Codex)"],
+    "escalation_to_opus": "Master agent (Claude Code session) handles escalation when Sonnet 4.6 returns UNCERTAIN on PEC rubric ≥3 times for the same task. Otherwise Sonnet 4.6 via Copilot does the work.",
+    "expected_copilot_consumption": "~10-30 Premium Requests per typical 1-iteration factory run. Heavy multi-iteration runs may hit ~100. Monitor via copilot session output (Premium count printed per call).",
+    "when_to_avoid_this_preset": [
+      "Truly novel architecture work where Opus reasoning quality matters",
+      "Final-iteration release-quality audits where direct ChatGPT Pro Codex catches things Copilot's gpt-5.3-codex misses",
+      "Days when GitHub Copilot quota is already low — switch to claude-heavy or balanced"
+    ]
+  },
+  "_model_availability_notes": {
+    "via_copilot": [
+      "Claude Sonnet 4.6 (default — set in ~/.copilot/settings.json)",
+      "Claude Sonnet 4.5, Sonnet 4, Haiku 4.5, Opus 4.7",
+      "GPT-5.4, GPT-5.3-Codex, GPT-5.2-Codex, GPT-5.2, GPT-5.4 mini, GPT-5 mini, GPT-4.1"
+    ],
+    "NOT_via_copilot": [
+      "Gemini (any version) — Copilot catalog is GPT + Claude only",
+      "GPT-5.5 — does not exist; latest is GPT-5.4 / GPT-5.3-Codex",
+      "OpenAI o3 — direct API only, requires OPENAI_API_KEY"
+    ],
+    "image_generation_via_copilot": "Not supported. Image gen routes to codex:image (gpt-image-1 via OPENAI_API_KEY) with gemini:image fallback (requires GEMINI_API_KEY)."
+  }
+}

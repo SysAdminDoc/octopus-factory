@@ -1,0 +1,49 @@
+# Local AI-tool working files (must never be committed)
+CLAUDE.md
+CODEX_CHANGELOG.md
+.claude/
+.codex/
+AGENTS.md
+AI_CONTEXT.md
+.aider*
+.cursorrules
+.continuerc
+.clinerc
+
+# Backups
+*.bak
+*.bak.*
+backups/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# Secrets / env / keys (defense-in-depth — should never reach this point)
+.env
+.env.*
+*.pem
+*.key
+*.keystore
+*.jks
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+*.kdbx
+*.kdb
+id_rsa*
+id_ed25519*
+id_ecdsa*
+
+# Local octopus state (per-user, don't share)
+.factory/
+*-lockout
+provider-fallbacks.log

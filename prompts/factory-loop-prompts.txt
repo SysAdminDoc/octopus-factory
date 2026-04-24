@@ -1,0 +1,186 @@
+=============================================================================
+ FACTORY LOOP — One prompt, zero fill-in, works on any repo
+=============================================================================
+ How to use:
+   1. Tell Claude: "Pull up ~/repos/<PROJECT>"   (or paste the full path)
+   2. Copy the prompt below (between the ===== lines)
+   3. Paste. Send. Walk away.
+
+ The prompt auto-detects: new-vs-existing, stack, current version, themes,
+ scope guards, iteration count, and release target. Nothing to fill in.
+
+ Provider routing (balanced mode — ~/.claude-octopus/config/providers.json):
+   Research / discover        →  Gemini primary, Claude Max augments (two-pass)
+   Define / develop / build   →  Claude Max
+   Review / security          →  Codex (ChatGPT Pro)
+   UX polish (first pass)     →  Codex  →  Claude Max counter-pass
+   Theming (first pass)       →  Codex  →  Claude Max counter-pass
+   Audit (three-role debate)  →  Grader (cheap) + Critic (Codex) + Defender (Claude)
+   Deliver + safety net       →  Copilot (universal fallback)
+   Image / logo               →  Codex (gpt-image-1, transparent PNG)
+                                 Fallback: Gemini (gemini-3-pro-image-preview)
+   Counter-audit              →  Claude Max (different family than Critic)
+
+ Swap routing mode: ~/.claude-octopus/bin/octo-route.sh <mode>
+ Modes: balanced | claude-heavy | codex-heavy | direct-only | copilot-only
+
+ Design principle of this prompt:
+   The RECIPE is the source of truth. This prompt does not restate recipe
+   internals — doing that is what caused drift in earlier versions. Updates
+   to the flow (new phases, new gates, new directives) belong in
+   recipe-factory-loop.md, not here. This prompt handles only the dynamic
+   bits (path, goal, iteration count) and a minimal hard-cap/never backstop.
+
+=============================================================================
+ THE ONLY PROMPT YOU NEED — copy everything between the lines below
+=============================================================================
+
+Run the factory loop on the repo path I just gave you. Autonomous mode —
+decide and proceed, no clarifying questions.
+
+Follow recipe-factory-loop.md in memory EXACTLY, end-to-end. The recipe is
+the source of truth; anything restated below is backstop only, not a
+substitute for reading the recipe.
+
+Lazy-load directives only when the phase that needs them fires:
+  directive-audit.md             (L3/L4 fallback)
+  directive-debate.md            (L3/L4 primary — three-role Grader/Critic/Defender)
+  directive-circuit-breakers.md  (runs alongside every phase)
+  directive-modularization.md    (M-phase — decompose monoliths, behavior-preserving)
+  directive-ux-polish.md         (U1/U2)
+  directive-theming.md           (T1/T2)
+  directive-dependency-scan.md   (D1/D2)
+  directive-secret-scan.md       (every commit gate)
+  recipe-ai-scrub.md             (S-phase on existing repos)
+  recipe-release-build.md        (Q3 — project-type-aware build + sign + release)
+
+AUTO-DETECT:
+- No .git directory → NEW project. Run full preflight (scaffold + OSS research
+  + logo + gh repo create --private + branch protection). S-phase auto-skips
+  (no prior history to scrub).
+- Has .git → EXISTING project. Pass --skip-preflight. S-phase auto-runs early
+  to scrub AI-reference history (autopilot: backup + apply + push; downgrades
+  to manual on multi-contributor or GPG-signed commits).
+- Pick the best stack for the problem on NEW projects (per "Best tool for the
+  job" rule in ~/.claude/CLAUDE.md — do not default to Python or PowerShell).
+  Load the matching stack-*.md after the decision.
+- On EXISTING projects: detect stack from build files (package.json / Cargo.toml
+  / *.csproj / build.gradle / go.mod / pyproject.toml / etc.). Load the matching
+  stack-*.md.
+- Read repo CLAUDE.md + linked memory file + ROADMAP.md + rtk git log -20 before
+  deciding the goal on EXISTING projects.
+- Derive the goal from repo state:
+    ROADMAP has unchecked items → advance them
+    Pending release → ship it
+    Open audit findings → close them
+    Empty / clean → hardening + polish pass (use --audit-only)
+- Derive iteration count:
+    NEW = 5 iterations
+    EXISTING with active roadmap = 3 iterations
+    EXISTING clean (no roadmap, no findings) = 1 iteration with --audit-only
+  Stop-on-convergence and stop-on-regression fire regardless of the count.
+- Next version: current patch bump unless roadmap work is major/breaking (minor
+  bump). Detect current via rtk grep on manifest/README badge. The single bump
+  happens at Q3, NOT per iteration.
+- Scope guards: extract from repo CLAUDE.md + memory file charter language.
+  Reject ROADMAP items that violate the stated charter.
+
+EXECUTE:
+  /octo:factory <THE_PATH_I_GAVE_YOU> --iterations <DETECTED_N> \
+      [--skip-preflight] [--audit-only] [--skip-scrub] [--manual-scrub] \
+      [--skip-wip-adoption] [--single-session] [--require-orchestrator] \
+      [--task <id>] [--plan]
+
+EXECUTION MODE:
+  On entry, detect whether the multi-provider orchestrator is available:
+  - orchestrate.sh accessible AND providers.json configured AND Codex/Gemini/
+    Copilot CLIs authenticated → ORCHESTRATED mode (recipe runs as designed,
+    parallel agents, real three-role debate, full Gemini/Codex/Copilot fan-out).
+  - Any prerequisite missing → SINGLE-SESSION mode (one Claude context runs
+    every phase serially with declared degradations: L4/U2/T2 collapsed into
+    L3/U1/T1, debate falls back to rubric check, image gen deferred to manual
+    upload). Honest fallback, not silent degradation.
+
+  In single-session mode, also check the scale gate:
+  - >50K LOC OR >500 files OR >1000 tests OR >30 open ROADMAP items
+    → AUTO-ENGAGE LARGE-REPO MODE. Recipe self-modifies and continues:
+        - 1 iteration this run (not 3-5)
+        - 3 P0/P1 tasks max this run (not 10)
+        - Per-task atomic commit + push (not batched at L7)
+        - U/T/D phases ROTATED (only run if cadence schedule says due)
+        - Q3 release runs only on minor/major bumps OR --release flag
+        - Anchored summarization compaction at 60% context (aggressive)
+        - State persisted to .factory/large-repo-state.yaml
+        - Next run on same repo picks up from last_run state
+        - N invocations incrementally drain the ROADMAP — finite + productive
+          per run, no halt-mid-session forks
+    Override with --halt-on-scale to revert to old halt-and-ask behavior.
+
+  Log the active mode + degradations + Large-Repo-Mode adjustments to
+  .factory/state.yaml + .factory/large-repo-state.yaml and the continuation
+  brief.
+
+HARD CAPS (backstop — the recipe has the full list):
+- L1 ROADMAP replenish: up to 10 NEW P0/P1 tasks per iteration
+- L2 implementation: top 10 unchecked P0/P1 items per iteration
+- Total iterations: 7 absolute maximum even if detection says otherwise
+- Cost: OCTOPUS_FACTORY_MAX_SPEND (default $5) — halt on cap
+- Per-agent budget caps enforced by directive-circuit-breakers.md
+
+NEVER (backstop — the recipe has the full list):
+- Ask me to confirm scope, version, stack, theme, or iteration count — decide
+  and proceed based on repo state
+- Skip the Definition of Done checklist in ~/.claude/CLAUDE.md before declaring
+  anything done
+- Commit CLAUDE.md, CODEX_CHANGELOG.md, .claude/, or any AI-reference files
+  (the commit gate + secret scan enforce this, but state it explicitly)
+- Use --no-verify, --no-gpg-sign, or bypass any hook
+- Skip the W-phase WIP-adoption when uncommitted work exists. The factory
+  takes ownership: classifies WIP into sensitive/sacred-cow/lockfile/docs/
+  config/test/code buckets, runs commit gates per group, commits each clean
+  group with role-based messages, pushes, and quarantines anything that fails
+  a gate. The legacy "stash first, restore after" behavior is gone — adoption
+  is the new default, halt-on-dirty is opt-in via --skip-wip-adoption.
+  Mid-merge / mid-rebase / mid-cherry-pick states still halt the run for
+  human resolution.
+- Run destructive ops (force-push main, reset --hard, drop tables, delete a
+  release without rollback) without stopping
+
+If you hit a genuinely ambiguous fork (mutually-exclusive paths, missing
+credentials, destructive branch point with no safe default): stop and ask once.
+Otherwise proceed.
+
+Begin.
+
+=============================================================================
+ OPTIONAL: AUDIT-ONLY VARIANT (no new features, harden + release existing code)
+=============================================================================
+
+Run the factory loop in audit-only mode on the repo path I just gave you.
+Follow recipe-factory-loop.md. No clarifying questions.
+
+Mode semantics (from the recipe): --audit-only skips P* (preflight), L1/L2
+(roadmap + implementation), U* (UX polish), T* (theming). Runs S* (auto-scrub),
+L3/L4 (three-role audit debate), L5 (doc drift sync), L7 (commit gate), D*
+(CVE/dep scan), and Q* (security → review → SLSA release with rollback +
+artifact smoke test).
+
+  /octo:factory <THE_PATH_I_GAVE_YOU> --iterations 1 --audit-only
+
+Begin.
+
+=============================================================================
+ OPTIONAL: DRY-RUN / PLAN MODE (preview without executing)
+=============================================================================
+
+Generate the factory plan + cost estimate + expected commit count for the repo
+path I just gave you. Do NOT execute anything. Follow recipe-factory-loop.md's
+--plan mode behavior.
+
+  /octo:factory <THE_PATH_I_GAVE_YOU> --iterations <DETECTED_N> --plan
+
+Begin.
+
+=============================================================================
+ END OF FILE
+=============================================================================

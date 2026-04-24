@@ -1,0 +1,95 @@
+=============================================================================
+ PDF DERIVATIVES — One prompt, zero fill-in
+=============================================================================
+ How to use:
+   1. Tell Claude: "Pull up ~/path/to/pdf-folder"   (or a single PDF path)
+   2. Copy the prompt below (between the ===== lines)
+   3. Paste. Send. Walk away.
+
+ What it does:
+   - Surveys the PDF(s) and any supporting materials in the directory
+   - Identifies content worth repackaging as standalone sub-guides or blog posts
+   - Writes an INVENTORY of derivative candidates with rationale before producing
+   - Produces focused sub-guide PDFs (with editable source) + blog-ready markdown
+   - Creates an INDEX.md catalog of everything produced
+   - Never modifies the source PDFs
+
+ Output structure (alongside originals, not replacing them):
+   derivatives/
+     guides/
+       <slug>.pdf
+       <slug>_editable.<ext>
+     blog/
+       <slug>.md
+     INVENTORY.md
+     INDEX.md
+
+=============================================================================
+ THE ONLY PROMPT YOU NEED — copy everything between the lines below
+=============================================================================
+
+Run the PDF derivatives recipe on the path I just gave you. Autonomous mode —
+do not ask me clarifying questions, make grounded editorial decisions and
+proceed. Follow recipe-pdf-derivatives.md in memory exactly, end-to-end.
+
+AUTO-DETECT:
+- Whether the path is a single PDF or a folder (process one or many).
+- Document type, audience, voice, and structure for each source PDF. Humanize language if over technical.
+- Supporting materials in the directory and subdirectories (docs, images,
+  brand assets, notes) that can improve the derivatives.
+- Branding cues from nearby logos, colors, typography. If none exist, infer a
+  minimal professional visual system consistent with the source.
+
+WORKFLOW:
+1. Survey sources + supporting materials.
+2. Write derivatives/INVENTORY.md with ranked candidates (title, type, source,
+   audience, angle, length, standalone effort, value rationale) BEFORE producing
+   any output.
+3. Cut candidates that cannot stand alone, duplicate each other, or would
+   require invention to work.
+4. Produce sub-guide PDFs (with editable source) and blog-ready markdown
+   (with frontmatter: title, slug, date, author, tags, summary, source_pdf,
+   source_section, reading_time, hero_image_suggestion).
+5. Write derivatives/INDEX.md catalog.
+
+NEVER:
+- Modify the source PDFs
+- Invent facts, statistics, quotes, case studies, or examples not in the source
+- Drop a derivative without attribution to parent PDF + section/page
+- Silently remove warnings, disclaimers, or critical content from a sub-guide
+- Fabricate a brand identity that conflicts with the source
+- Claim editability if a sub-guide's editable source is effectively flattened
+- Pad thin candidates to reach a word count — cut them from inventory instead
+- Use corporate filler ("in today's fast-paced world") in blog posts
+
+QUALITY BAR:
+Real publishing-grade output. Sub-guides someone would pay for. Blog posts an
+editor would approve. Not content-farm extracts. If a candidate cannot clear
+that bar, cut it from the inventory — fewer high-quality derivatives beats
+many thin ones.
+
+Begin.
+
+=============================================================================
+ OPTIONAL: GUIDES-ONLY MODE (skip blog posts)
+=============================================================================
+
+Same recipe as above, but produce ONLY sub-guide PDFs (plus editable source).
+Skip the blog/ folder entirely. INVENTORY + INDEX still written. Autonomous.
+Follow recipe-pdf-derivatives.md.
+
+Begin.
+
+=============================================================================
+ OPTIONAL: BLOG-ONLY MODE (skip sub-guides)
+=============================================================================
+
+Same recipe as above, but produce ONLY blog-post markdown files. Skip the
+guides/ folder entirely. INVENTORY + INDEX still written. Autonomous.
+Follow recipe-pdf-derivatives.md.
+
+Begin.
+
+=============================================================================
+ END OF FILE
+=============================================================================

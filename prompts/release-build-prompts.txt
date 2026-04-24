@@ -1,0 +1,139 @@
+=============================================================================
+ RELEASE BUILD — One prompt, zero fill-in, project-type-aware
+=============================================================================
+ When to use THIS file vs. the factory loop:
+   - Factory loop (factory-loop-prompts.txt) calls this recipe automatically
+     in its Q3 phase. If you're running the full factory pipeline, the release
+     happens at the end — you don't need to invoke this separately.
+   - Use this file when you want release-only behavior — the code is already
+     audited and committed, you just want to cut a new version and ship
+     signed artifacts.
+
+ How to use (standalone):
+   1. Tell Claude: "Pull up ~/repos/<PROJECT>"   (or paste the full path)
+   2. Copy the prompt below (between the ===== lines)
+   3. Paste. Send.
+
+ What it does:
+   - Detects version bump from commits/CHANGELOG (major/minor/patch)
+   - Detects project type (Chrome/Firefox/Python/Android/C#/C++/Rust/Go/Node)
+   - Runs type-specific build pipeline (cross-platform via GitHub Actions matrix)
+   - Signs artifacts per type (CRX with .pem, APK with keystore, EXE with cert)
+   - Enforces PyInstaller fork-bomb safeguards for Python builds
+   - Creates GitHub release as DRAFT, attaches artifacts + SHA256SUMS
+   - Smoke-tests each artifact before promoting draft to full release
+   - Rolls back cleanly on any failure (delete tag + revert commit + nuke draft)
+
+=============================================================================
+ THE ONLY PROMPT YOU NEED — copy everything between the lines below
+=============================================================================
+
+Run the release build recipe on the repo path I just gave you. Autonomous
+mode — decide and proceed.
+
+Follow recipe-release-build.md in memory EXACTLY, end-to-end.
+
+AUTO-DETECT:
+- Version bump level from conventional-commit messages since last tag +
+  CHANGELOG "Unreleased" keywords. Major / minor / patch.
+- Project type from build manifests (manifest.json, build.gradle, *.csproj,
+  Cargo.toml, go.mod, pyproject.toml, package.json, *.user.js).
+- A repo can match multiple types — run each matching pipeline.
+- Cross-platform builds run via GitHub Actions matrix (not local). If
+  release.yml is missing or lacks matrix config, generate it.
+
+SIGNING REQUIREMENTS (enforce even if credentials missing — halt instead of
+shipping unsigned):
+- Chrome extension: CRX3 signed with repo's persistent extension.pem
+  (generate once, NEVER regenerate — new key = new extension ID = orphaned
+  users). If first release, generate + store base64 in EXTENSION_PEM Secret,
+  record SHA-256 in repo CLAUDE.md.
+- Firefox extension: signed XPI via web-ext sign (requires AMO_JWT_ISSUER +
+  AMO_JWT_SECRET Secrets). Unlisted channel by default; listed on user opt-in.
+- Android APK: signed with persistent keystore via V2+V3 schemes (requires
+  KEYSTORE_BASE64 + KEYSTORE_PASSWORD + KEY_ALIAS + KEY_PASSWORD Secrets).
+  If first release, generate keystore + record SHA-256 fingerprint in
+  CLAUDE.md.
+- Windows executables: Authenticode signing if WINDOWS_CERT_PFX Secret exists;
+  skip + note in release body if not.
+- macOS executables: codesign + notarize if APPLE_* Secrets exist; skip + note
+  if not.
+
+PYTHON-SPECIFIC (NON-NEGOTIABLE per ~/CLAUDE.md):
+Before any PyInstaller build, verify ALL of these are present. Refuse to ship
+if any is missing:
+1. multiprocessing.freeze_support() is the first executable statement in the
+   entry script (before any other imports except `import multiprocessing`).
+2. runtime_hooks=['assets/runtime_hook_mp.py'] in the .spec file, and that
+   hook itself calls freeze_support().
+3. No unguarded subprocess.run([sys.executable, ...]) calls — all must be
+   protected by _is_frozen() checks.
+Without these guards, the PyInstaller exe fork-bombs on Windows (spawns
+endless copies of itself, locks the machine).
+
+CROSS-PLATFORM BUILDS:
+- Python: Windows (via windows-latest runner), macOS (macos-latest), Linux
+  (ubuntu-latest). Matrix in release.yml.
+- Rust: same matrix, native cross-compile targets.
+- Go: native cross-compile via GOOS/GOARCH loop, no matrix needed.
+- C# .NET: `dotnet publish -r <rid>` per target runtime.
+- C++ Windows: build on Windows only (or use MinGW for cross-compile).
+- Android: gradle assembleRelease + bundleRelease, any OS runner.
+
+ARTIFACT NAMING (consistent across types):
+  <name>-v<version>-<platform>.<ext>
+  examples:
+    myapp-v1.0.0-win-x64.exe
+    myapp-v1.0.0-macos-arm64
+    myapp-v1.0.0-linux-x64
+    myapp-v1.0.0.crx
+    myapp-v1.0.0.xpi
+    myapp-v1.0.0-release.apk
+
+RELEASE STRUCTURE:
+1. Draft release first (never direct-to-public).
+2. Attach all platform artifacts + SHA256SUMS.txt.
+3. Smoke-test each artifact (run --version, load extension in headless Chrome,
+   aapt dump APK, etc.).
+4. Promote draft to full release only if all smoke tests pass.
+5. Include install instructions in release notes per project type.
+6. Include signing fingerprints in release notes so users can verify.
+
+NEVER:
+- Ship an unsigned extension, APK, or executable on a release channel.
+- Regenerate an extension .pem or Android keystore on a non-first release —
+  that orphans every existing user. Halt and ask if key material is missing.
+- Skip the Python fork-bomb safeguard checks — they prevent machine lockups.
+- Create a non-draft release without passing every smoke test.
+- Proceed after any signing or verification failure — rollback instead per
+  recipe Phase 6.
+
+Begin.
+
+=============================================================================
+ OPTIONAL: PATCH-RELEASE-SKIP MODE
+=============================================================================
+
+Same as above, but do NOT create a GitHub Release if the detected bump is
+only a patch (fixes only, no new features). Commit + push + tag locally, but
+no release. Use when you ship patches frequently and don't want release spam.
+
+  /octo:release <THE_PATH_I_GAVE_YOU> --skip-patch-release
+
+Begin.
+
+=============================================================================
+ OPTIONAL: FORCE-MAJOR-RELEASE
+=============================================================================
+
+Bump to the next MAJOR version regardless of what commit analysis suggests.
+Use when refactoring or API changes warrant a major bump that the
+conventional-commit format didn't capture cleanly.
+
+  /octo:release <THE_PATH_I_GAVE_YOU> --force-major
+
+Begin.
+
+=============================================================================
+ END OF FILE
+=============================================================================

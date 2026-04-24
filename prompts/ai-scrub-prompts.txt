@@ -1,0 +1,107 @@
+=============================================================================
+ AI-REFERENCE SCRUB — Remove AI attribution from git history
+=============================================================================
+ When to use THIS file vs. the factory loop:
+   - Factory loop (factory-loop-prompts.txt) runs this automatically as the
+     S-phase on existing repos. If you're doing a full factory run, you don't
+     need to invoke this separately.
+   - Use this file when you want the scrub WITHOUT the full factory pipeline —
+     e.g., cleaning up an archived repo, prepping for portfolio, or running on
+     a repo you don't want to touch with the loop.
+
+ How to use (standalone):
+   1. Tell Claude: "Pull up ~/repos/<PROJECT>"   (or paste the full path)
+   2. Copy the prompt below (between the ===== lines)
+   3. Paste. Send.
+   4. Review the dry-run report. If it looks good, tell Claude "apply it".
+   5. Review the apply output. If it looks good, tell Claude "push it".
+
+ What it does:
+   - Removes Co-Authored-By trailers for Claude / Codex / Copilot / etc.
+   - Removes "Generated with Claude Code" signatures + emoji tags (🤖)
+   - Removes claude.ai / anthropic.com / chatgpt.com URL references
+   - Optionally purges CLAUDE.md / CODEX_CHANGELOG.md / .claude/ from history
+   - Preserves commit SHAs-as-parentage, diffs, dates, legitimate content
+   - Creates local bundle + remote backup branch before any rewrite
+   - Requires explicit confirmation at each destructive step
+
+ What it does NOT touch:
+   - GitHub PR / issue comments (those live on GitHub, not in the repo)
+   - Commits on other branches/forks you don't own
+   - Legitimate uses of "claude" / "codex" words that aren't AI attribution
+
+=============================================================================
+ THE ONLY PROMPT YOU NEED — copy everything between the lines below
+=============================================================================
+
+Run the AI-reference scrub recipe on the repo path I just gave you. Follow
+recipe-ai-scrub.md in memory exactly.
+
+START IN DRY-RUN MODE. Do not modify the real repo. Do not push anything.
+
+WORKFLOW:
+1. Preconditions: verify working tree clean, git-filter-repo installed, record
+   current state, warn on shared-repo / signed-commit flags.
+2. Backup: create local bundle at ~/repos/backups/<repo>-<timestamp>.bundle.
+   (Remote backup branch will be created on --apply, not dry-run.)
+3. Dry-run: clone to /tmp/ai-scrub-<repo>-<timestamp>/, apply the scrub logic,
+   produce a report.
+4. Report:
+   - Count of commits with message changes
+   - Count of Co-Authored-By trailers removed
+   - Count of files that would be purged (if --include-files implied)
+   - 5 before/after sample pairs
+   - Any commits that would become empty (preserve with placeholder)
+5. Stop. Report the findings. Wait for me to say "apply it" before touching
+   the real repo.
+
+ALSO LOOK FOR (agent-only, not in helper script):
+- Committed files in the current tree that would embarrass (check for stale
+  CLAUDE.md, CODEX_CHANGELOG.md, .aider* files, etc.) — flag them for manual
+  review.
+- Legitimate commits that look AI-generated but aren't (e.g., a commit
+  discussing an AI feature of the actual product) — these should NOT be
+  scrubbed; note them in the report.
+
+NEVER:
+- Run with --apply on this pass (dry-run only)
+- Force-push anything
+- Delete the backup bundle
+- Skip the dry-run report
+- Modify shared / signed commits without explicit acknowledgement
+
+Helper script (invoke for mechanical work):
+  ~/.claude-octopus/bin/ai-scrub.sh <repo-path> --dry-run
+  ~/.claude-octopus/bin/ai-scrub.sh <repo-path> --dry-run --include-files
+
+Begin.
+
+=============================================================================
+ FOLLOW-UP PROMPTS (use after reviewing the dry-run)
+=============================================================================
+
+After dry-run looks good, paste THIS to apply locally (no push yet):
+
+Apply the scrub on the same repo. Invoke:
+  ~/.claude-octopus/bin/ai-scrub.sh <repo-path> --apply
+(or --apply --include-files if the report identified AI-context files)
+
+Confirm each interactive prompt. When the script finishes, spot-check 3 random
+commits with `rtk git log --format=fuller -1 <sha>` and confirm the messages
+are clean. Report any surprises.
+
+=============================================================================
+
+After local apply looks good, paste THIS to force-push:
+
+Force-push the rewritten history. Invoke:
+  cd <repo-path> && rtk git push --force-with-lease origin <branch>
+  cd <repo-path> && rtk git push --force-with-lease origin --tags
+
+Then verify via `rtk gh repo view --web` — open 3 recent commit pages and
+confirm GitHub is serving the scrubbed messages. Report backup branch name
+and bundle location so I know what to keep.
+
+=============================================================================
+ END OF FILE
+=============================================================================

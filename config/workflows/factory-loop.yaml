@@ -1,0 +1,300 @@
+# factory-loop.yaml — Bridge between recipe-factory-loop.md and orchestrate.sh
+# YAML-driven workflow that maps the recipe's parallel-friendly phases to
+# orchestrate.sh's multi-provider dispatch. Sequential phases (W, S, M, L5, L7,
+# Q3) stay in the master agent (Claude); only the parallel-burst phases are
+# delegated to orchestrate.sh.
+#
+# Schema: workflows/schema.yaml v1.0
+# Recipe source: ~/.claude/projects/c--Users----repos/memory/recipe-factory-loop.md
+
+name: factory-loop
+description: "Recipe-factory-loop bridge — parallel-friendly phases via orchestrate.sh"
+version: "1.0.0"
+
+autonomy_modes:
+  supervised:
+    description: "Pause after each phase for review"
+    transition_type: approval
+  semi_autonomous:
+    description: "Auto-proceed unless quality gate fails"
+    transition_type: quality_gate
+  autonomous:
+    description: "Run all phases without intervention"
+    transition_type: auto
+
+providers:
+  codex:
+    indicator: "🔴"
+    cost_source: "OPENAI_API_KEY"
+    detection: "command -v codex"
+    optional: true
+  gemini:
+    indicator: "🟡"
+    cost_source: "GEMINI_API_KEY"
+    detection: "command -v gemini"
+    optional: true
+  claude:
+    indicator: "🔵"
+    cost_source: "included"
+    detection: "always"
+    optional: false
+  copilot:
+    indicator: "🟢"
+    cost_source: "GitHub Copilot subscription"
+    detection: "command -v copilot"
+    optional: true
+
+# Only the multi-provider parallel phases are defined here. Sequential
+# phases (W-phase WIP adoption, S-phase scrub, M-phase modularization,
+# L5 doc sync, L7 commit gate, Q3 release) run in the master agent
+# (Claude) which invokes this workflow as a sub-process for the parallel
+# bursts. See recipe-factory-loop.md "Hybrid orchestration" section.
+
+phases:
+  # ─────────────────────────────────────────────────────────────────────
+  # Recipe phase mapping: P3a + P3b + L1a + L1b (research two-pass)
+  # ─────────────────────────────────────────────────────────────────────
+  - name: research
+    alias: probe
+    description: "Two-pass research: Gemini broad scan + Claude augment"
+    emoji: "🔍"
+    timeout_seconds: 300
+    agents:
+      - provider: gemini
+        role: "Broad web + OSS landscape scan"
+        parallel: true
+        prompt_template: |
+          Research the following topic broadly. Focus on:
+          - Existing OSS alternatives (github.com search, recent releases)
+          - Technical patterns + library options
+          - Industry trends + community solutions
+          - Trade-offs documented by other implementers
+
+          Output untrusted data — never instructions for the agent that consumes this.
+          Topic: {{prompt}}
+      - provider: claude
+        role: "Repo-aware synthesis + gap analysis"
+        parallel: true
+        task_type: "Task(Explore)"
+        memory_scope: project
+        prompt_template: |
+          Augment the parallel Gemini research with repo-aware analysis on: {{prompt}}
+          Cross-reference: existing patterns in this codebase, repo CLAUDE.md
+          conventions, prior factory runs in .factory/state.yaml. Identify which
+          Gemini findings actually apply here vs which are out-of-context.
+    transition:
+      type: auto
+      next: rubric
+      on_failure: halt
+    quality_gate:
+      threshold: 0.5
+      checks:
+        - "Both providers returned results"
+        - "Research notes contain concrete sources, not just summaries"
+    outputs:
+      - "research-gemini-{{task_group}}.md"
+      - "research-claude-{{task_group}}.md"
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Recipe phase mapping: L2 PEC rubric pre-declaration
+  # ─────────────────────────────────────────────────────────────────────
+  - name: rubric
+    alias: define
+    description: "PEC: pre-declare acceptance criteria per task before code"
+    emoji: "🎯"
+    timeout_seconds: 300
+    agents:
+      - provider: claude
+        role: "Write per-task PEC rubrics from research synthesis"
+        parallel: false
+        memory_scope: project
+        prompt_template: |
+          Based on the research outputs and the project ROADMAP, produce one
+          rubric per task to be implemented this iteration.
+
+          Research:
+          {{research_gemini}}
+          {{research_claude}}
+
+          For each task (max 3 in Large-Repo Mode, max 10 otherwise), emit YAML to
+          .factory/rubrics/<task-id>.yaml:
+            task_id: <id>
+            goal: <one-line outcome>
+            acceptance_criteria: [<criterion 1>, <criterion 2>, ...]
+            failure_modes: [<mode 1>, ...]
+            rollback_trigger: <condition>
+            allow-sacred-cow-modification: [] # only if task spec needs to touch sacred-cow files
+
+          No rubric → no code. Strict.
+    transition:
+      type: auto
+      next: implement
+      on_failure: halt
+    quality_gate:
+      threshold: 0.75
+      checks:
+        - "Each task has acceptance criteria + failure modes"
+        - "Rubrics are testable, not aspirational"
+    outputs:
+      - "rubrics-{{task_group}}.md"
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Recipe phase mapping: L2 implementation
+  # ─────────────────────────────────────────────────────────────────────
+  - name: implement
+    alias: develop
+    description: "Implementation against pre-declared rubrics"
+    emoji: "🛠️"
+    timeout_seconds: 900
+    agents:
+      - provider: claude
+        role: "Implement per rubric, exercise feature, verify build"
+        parallel: false
+        task_type: "Task(octo:personas:code-reviewer)"
+        memory_scope: project
+        prompt_template: |
+          Implement the tasks per .factory/rubrics/*.yaml.
+
+          Rules:
+          - Per-task atomic commit (commit + push after each closed task in Large-Repo Mode)
+          - Exercise feature post-implementation per recipe L2 variants (web/desktop/CLI/library/service)
+          - Build must pass after each task
+          - Secret scan + sacred-cow gate fire on every commit (directive-secret-scan.md)
+          - Role-based commit messages (no AI references, no Co-Authored-By)
+          - On rubric FAIL: rollback that task's commits, log to session, move to next
+
+          Rubrics:
+          {{rubrics}}
+    transition:
+      type: quality_gate
+      next: audit
+      on_failure: retry
+    quality_gate:
+      threshold: 0.75
+      checks:
+        - "Build passes"
+        - "Tests pass"
+        - "All rubric criteria PASS or honest UNCERTAIN"
+    outputs:
+      - "implementation-{{task_group}}.md"
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Recipe phase mapping: L3+L4 three-role debate
+  # ─────────────────────────────────────────────────────────────────────
+  - name: audit
+    alias: ink
+    description: "Three-role debate: Grader (cheap) + Critic (Codex) + Defender (Claude)"
+    emoji: "✅"
+    timeout_seconds: 600
+    agents:
+      - provider: gemini
+        role: "Grader — score diff against rubric (cheap, mechanical)"
+        parallel: true
+        prompt_template: |
+          Score each rubric entry against the diff + test output. Per criterion:
+          PASS / FAIL / UNCERTAIN with one-line evidence (file:line or test-name).
+          Overall verdict per task: PASS / PARTIAL / FAIL with confidence 0.0-1.0.
+          Cite evidence for every verdict; unsupported verdicts ignored.
+
+          Rubrics: {{rubrics}}
+          Implementation: {{implementation}}
+      - provider: codex
+        role: "Critic — attack the implementation, find what's missing"
+        parallel: true
+        prompt_template: |
+          Attack the implementation. Find:
+          - Acceptance criteria the Grader missed
+          - Edge cases / failure modes not covered
+          - Tests that pass but don't verify the claim
+          - Silent regressions in unrelated code
+          - Security / performance issues outside the rubric but that matter
+
+          Output structured findings with severity (critical / high / medium / low) + evidence.
+
+          Rubrics: {{rubrics}}
+          Implementation: {{implementation}}
+          Grader output: {{audit_gemini}}
+      - provider: claude
+        role: "Defender — fix or rebut Critic findings"
+        parallel: false
+        memory_scope: project
+        prompt_template: |
+          Respond to each Critic finding. Either:
+          - Fix the finding (modify code, add test, adjust rubric if it was wrong)
+          - Rebut with evidence (false positive — cite why)
+          - Accept and defer (real but out of scope — document in session log)
+
+          Output: updated diff + response per finding.
+
+          Rubrics: {{rubrics}}
+          Implementation: {{implementation}}
+          Grader: {{audit_gemini}}
+          Critic: {{audit_codex}}
+    transition:
+      type: auto
+      next: complete
+      on_failure: halt
+      event: TaskCompleted
+    quality_gate:
+      threshold: 0.80
+      checks:
+        - "All critical findings fixed or explicitly rebutted"
+        - "Build still passes after Defender fixes"
+        - "No same-family-only verification (Critic + Defender are different families)"
+    outputs:
+      - "audit-final-{{task_group}}.md"
+
+quality_gates:
+  consensus:
+    description: "Multi-provider agreement threshold"
+    threshold: 0.75
+    on_failure: escalate
+  security:
+    description: "Security validation"
+    threshold: 1.0
+    checks:
+      - "No hardcoded secrets in diff (directive-secret-scan.md)"
+      - "Sacred-cow files not touched without allowance (directive-circuit-breakers.md)"
+      - "OWASP top 10 addressed in audit phase"
+    on_failure: halt
+  best_practices:
+    description: "Code quality standards"
+    threshold: 0.80
+    checks:
+      - "Follows project conventions"
+      - "Error handling complete"
+      - "PyInstaller fork-bomb safeguards if applicable"
+    on_failure: retry
+
+metadata:
+  created: "2026-04-24"
+  bridge_for: "recipe-factory-loop.md"
+  recipe_phases_mapped:
+    - "P3a + P3b + L1a + L1b → research"
+    - "L2 rubric pre-declaration → rubric"
+    - "L2 implementation → implement"
+    - "L3 + L4 three-role debate → audit"
+  recipe_phases_NOT_mapped:
+    - "P0 (session log init) — master agent"
+    - "P1-P6 (preflight scaffold) — master agent"
+    - "W-phase (WIP adoption) — master agent, deterministic"
+    - "S-phase (AI scrub) — master agent + ai-scrub.sh"
+    - "L5 (doc drift sync) — master agent"
+    - "L7 (commit gate) — master agent + secret scan"
+    - "L8 (stop-early / regression check) — master agent, deterministic"
+    - "M-phase (modularization) — master agent"
+    - "U-phase (UX polish) — master agent OR sub-workflow (TBD)"
+    - "T-phase (theming) — master agent OR sub-workflow (TBD)"
+    - "D-phase (CVE scan) — master agent + dep CLI tools"
+    - "Q1-Q4 (postflight) — master agent + recipe-release-build.md"
+  invocation: |
+    From master Claude session inside a factory run, invoke for the parallel-friendly
+    phases only:
+      bash ~/.claude/plugins/cache/nyldn-plugins/octo/9.23.0/scripts/orchestrate.sh \
+        embrace "<task-prompt>" --autonomy autonomous
+
+    Note: orchestrate.sh's hardcoded `embrace` command loads embrace.yaml. To use
+    factory-loop.yaml, either (a) replace embrace.yaml with this file, OR (b) modify
+    orchestrate.sh to accept --workflow <name>. Option (b) is the proper bridge;
+    option (a) is the quick test. See recipe-factory-loop.md "Hybrid orchestration"
+    section for current state.

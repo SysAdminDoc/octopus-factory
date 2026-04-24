@@ -1,0 +1,53 @@
+{
+  "version": "3.0",
+  "_mode": "codex-heavy",
+  "_description": "Maximize ChatGPT Pro / Codex usage. Codex handles all audit + build work. Use when ChatGPT Pro quota is fresh.",
+  "providers": {
+    "codex": {
+      "default": "gpt-5.4",
+      "fallback": "gpt-5.4-mini",
+      "spark": "gpt-5.4",
+      "mini": "gpt-5.4-mini",
+      "reasoning": "o3",
+      "large_context": "gpt-5.4"
+    },
+    "gemini": {
+      "default": "gemini-2.5-flash",
+      "fallback": "gemini-2.5-flash",
+      "flash": "gemini-2.5-flash",
+      "image": "gemini-3-pro-image-preview"
+    }
+  },
+  "routing": {
+    "phases": {
+      "discover": "gemini:default",
+      "define": "codex:default",
+      "develop": "codex:default",
+      "deliver": "codex:default",
+      "review": "codex:default",
+      "security": "codex:reasoning",
+      "research": "gemini:default"
+    },
+    "roles": {
+      "researcher": "gemini:default",
+      "image": "gemini:image",
+      "counter-audit": "claude",
+      "builder": "codex:default"
+    }
+  },
+  "tiers": {
+    "budget": {
+      "codex": "mini",
+      "gemini": "flash"
+    },
+    "standard": {
+      "codex": "default",
+      "gemini": "default"
+    },
+    "premium": {
+      "codex": "default",
+      "gemini": "default"
+    }
+  },
+  "overrides": {}
+}

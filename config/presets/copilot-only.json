@@ -1,0 +1,53 @@
+{
+  "version": "3.0",
+  "_mode": "copilot-only",
+  "_description": "Route everything through Copilot's multi-backend (claude/gpt-5/gemini internally). Use when direct account quotas are low. Preserves ChatGPT Pro + Claude Max + Gemini Pro quotas.",
+  "providers": {
+    "codex": {
+      "default": "gpt-5.4",
+      "fallback": "gpt-5.4-mini",
+      "spark": "gpt-5.4",
+      "mini": "gpt-5.4-mini",
+      "reasoning": "o3",
+      "large_context": "gpt-5.4"
+    },
+    "gemini": {
+      "default": "gemini-2.5-flash",
+      "fallback": "gemini-2.5-flash",
+      "flash": "gemini-2.5-flash",
+      "image": "gemini-3-pro-image-preview"
+    }
+  },
+  "routing": {
+    "phases": {
+      "discover": "copilot-research",
+      "define": "copilot",
+      "develop": "copilot",
+      "deliver": "copilot",
+      "review": "copilot",
+      "security": "copilot",
+      "research": "copilot-research"
+    },
+    "roles": {
+      "researcher": "copilot-research",
+      "image": "gemini:image",
+      "counter-audit": "copilot",
+      "builder": "copilot"
+    }
+  },
+  "tiers": {
+    "budget": {
+      "codex": "mini",
+      "gemini": "flash"
+    },
+    "standard": {
+      "codex": "default",
+      "gemini": "default"
+    },
+    "premium": {
+      "codex": "default",
+      "gemini": "default"
+    }
+  },
+  "overrides": {}
+}

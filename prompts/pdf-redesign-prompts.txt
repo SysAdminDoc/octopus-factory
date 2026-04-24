@@ -1,0 +1,80 @@
+=============================================================================
+ PDF REDESIGN — One prompt, zero fill-in
+=============================================================================
+ How to use:
+   1. Tell Claude: "Pull up ~/path/to/pdf-folder"   (or paste the full path)
+   2. Copy the prompt below (between the ===== lines)
+   3. Paste. Send. Walk away.
+
+ What it does:
+   - Picks the primary PDF to redesign (auto-detects if multiple exist)
+   - Scans the directory for supporting materials (brand assets, notes, etc.)
+   - Audits the document for design + writing + structural weaknesses
+   - Produces an improved PDF + editable source + markdown changelog
+   - Never modifies the original
+
+ Output files (alongside original, not replacing it):
+   <original_basename>_improved.pdf
+   <original_basename>_improved_editable.<best_format>
+   <original_basename>_change_log.md
+
+=============================================================================
+ THE ONLY PROMPT YOU NEED — copy everything between the lines below
+=============================================================================
+
+Run the PDF redesign recipe on the directory I just gave you. Autonomous mode —
+do not ask me clarifying questions, make grounded decisions and proceed. Follow
+recipe-pdf-redesign.md in memory exactly, end-to-end.
+
+AUTO-DETECT:
+- Which PDF is the primary redesign target. If multiple PDFs exist, pick the
+  most-likely primary deliverable based on filename hints, completeness, recency,
+  size, and surrounding material.
+- Document type (guidebook, manual, brochure, report, handbook, training doc,
+  onboarding material, product sheet, proposal, internal process doc).
+- Audience and tone from content.
+- Supporting materials in the directory and subdirectories that can improve
+  accuracy, completeness, branding, or visual quality (Word docs, markdown,
+  text, slide decks, spreadsheets, images, logos, icons, screenshots, diagrams,
+  brand assets, notes).
+- Branding cues from nearby logos, colors, typography. If none exist, infer a
+  minimal professional visual system consistent with the document's context.
+
+PRODUCE (in the same directory, original untouched):
+  <original_basename>_improved.pdf
+  <original_basename>_improved_editable.<best_practical_format>
+  <original_basename>_change_log.md
+
+NEVER:
+- Overwrite or modify the original PDF
+- Invent facts, statistics, legal language, technical claims, or references
+- Remove critical warnings, disclaimers, instructions, or essential content
+- Silently drop important detail
+- Fabricate a brand identity that conflicts with the document's context
+- Claim editability if the output is effectively flattened
+- Guess when source materials conflict — note the conflict in the changelog
+
+QUALITY BAR:
+Professional redesign, not a minor cleanup. The output should look materially
+better, read better, and flow better than the original while remaining accurate
+and trustworthy. Suitable to send to real stakeholders.
+
+Restrained premium design. Elegant simplicity over overdesign. Clarity over
+decoration. Faithful improvement over speculative reinvention.
+
+Begin.
+
+=============================================================================
+ OPTIONAL: BATCH MODE (redesign every PDF in the directory)
+=============================================================================
+
+Run the PDF redesign recipe on the directory I just gave you in BATCH mode —
+process every PDF in the directory, not just the primary candidate. Same rules,
+same output naming convention per file, one changelog per PDF. Autonomous.
+Follow recipe-pdf-redesign.md.
+
+Begin.
+
+=============================================================================
+ END OF FILE
+=============================================================================
