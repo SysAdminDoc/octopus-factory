@@ -3,6 +3,8 @@ name: Circuit Breakers & Safeguards Directive
 description: Deterministic (non-AI) safeguards that run alongside every factory phase. Loop detection, per-agent budget caps, sacred-cow file manifest, stop-on-regression, cooldown states. Trusting a model to self-terminate is the single most expensive assumption — these gates are the hard stop.
 type: reference
 originSessionId: 0bdf5c47-1a4d-4da7-953e-97bb4a97b38f
+triggers: [breaker, loop, budget, sacred cow, regression, cooldown, halt]
+agents: [orchestrator, implementer, critic]
 ---
 # Circuit Breakers & Safeguards Directive
 

@@ -32,7 +32,9 @@
       "researcher": "gemini:default",
       "image": "gemini:image",
       "counter-audit": "claude",
-      "builder": "codex:default"
+      "builder": "codex:default",
+      "weak": "codex:mini",
+      "editor": "codex:default"
     }
   },
   "tiers": {
@@ -49,5 +51,10 @@
       "gemini": "default"
     }
   },
-  "overrides": {}
+  "overrides": {},
+  "_tier_semantics": {
+    "primary": "role-default agent from routing.phases/routing.roles",
+    "weak": "cheap model for mechanical work: commit messages, diff summaries, lint-error interpretation, rubric-scoring. Cost target: 10-30% of primary.",
+    "editor": "code-generation-focused model for actual file edits, when primary is better at reasoning than writing code. Falls back to primary if unset."
+  }
 }

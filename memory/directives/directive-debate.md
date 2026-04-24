@@ -3,6 +3,8 @@ name: Three-Role Debate Directive
 description: Rubric-conditioned multi-agent debate pattern for L3/L4 audit phases. Replaces sequential Codex-then-Claude audit with Grader / Critic / Defender + Beta-Binomial adaptive stopping. Proven in ICLR 2026 ("Rethinking LLMs as Verifiers") and arXiv 2510.12697 to outperform majority vote and single counter-pass.
 type: reference
 originSessionId: 0bdf5c47-1a4d-4da7-953e-97bb4a97b38f
+triggers: [debate, rubric, grader, critic, defender, verification]
+agents: [grader, critic, defender]
 ---
 # Three-Role Debate Directive
 

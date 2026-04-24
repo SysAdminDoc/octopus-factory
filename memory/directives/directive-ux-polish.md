@@ -3,6 +3,8 @@ name: UX Polish Directive
 description: Premium UX/UI polish standard referenced by U1 and U2 of the factory loop. Covers visual, states, components, flow, microcopy, a11y, motion, theme, perceived quality. Load lazily — only when the UX phase is running.
 type: reference
 originSessionId: 0bdf5c47-1a4d-4da7-953e-97bb4a97b38f
+triggers: [ux, ui, polish, visual, accessibility, a11y, microcopy, motion]
+agents: [implementer, critic]
 ---
 # UX Polish Directive
 

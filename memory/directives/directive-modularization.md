@@ -3,6 +3,8 @@ name: Modularization Directive
 description: Decompose monolithic codebases into well-organized modules with clear seams, single responsibility, and explicit boundaries. Referenced by factory loop M-phase. Behavior-preserving — no functional changes, structural only.
 type: reference
 originSessionId: 0bdf5c47-1a4d-4da7-953e-97bb4a97b38f
+triggers: [modularize, decompose, monolith, split, refactor, module boundary]
+agents: [implementer]
 ---
 # Modularization Directive
 

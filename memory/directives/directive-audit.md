@@ -3,6 +3,8 @@ name: Audit Directive
 description: Production-grade code audit standard referenced by L3 and L4 of the factory loop. Covers correctness, edge cases, security, performance, maintainability, testing, DX. Load lazily — only when an audit phase is running.
 type: reference
 originSessionId: 0bdf5c47-1a4d-4da7-953e-97bb4a97b38f
+triggers: [audit, review, bug, security review, code quality, qa]
+agents: [critic, counter-audit]
 ---
 # Audit Directive
 

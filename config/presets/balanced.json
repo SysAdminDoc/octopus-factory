@@ -41,7 +41,9 @@
       "counter-audit": "claude",
       "ux_counter_polish": "claude",
       "theming_counter_polish": "claude",
-      "builder": "claude"
+      "builder": "claude",
+      "weak": "copilot-haiku",
+      "editor": "copilot-sonnet"
     }
   },
   "tiers": {
@@ -59,5 +61,10 @@
     }
   },
   "overrides": {},
-  "_image_generation_note": "codex:image maps to OpenAI gpt-image-1 (supports transparent_background: true). Requires OPENAI_API_KEY in env or ~/.codex/auth.json. User currently has OAuth-only Codex auth (no API key); image generation will fall back to gemini:image until an API key is added. Generate key at https://platform.openai.com/api-keys \u2192 export OPENAI_API_KEY=sk-... in shell profile."
+  "_image_generation_note": "codex:image maps to OpenAI gpt-image-1 (supports transparent_background: true). Requires OPENAI_API_KEY in env or ~/.codex/auth.json. User currently has OAuth-only Codex auth (no API key); image generation will fall back to gemini:image until an API key is added. Generate key at https://platform.openai.com/api-keys \u2192 export OPENAI_API_KEY=sk-... in shell profile.",
+  "_tier_semantics": {
+    "primary": "role-default agent from routing.phases/routing.roles",
+    "weak": "cheap model for mechanical work: commit messages, diff summaries, lint-error interpretation, rubric-scoring. Cost target: 10-30% of primary.",
+    "editor": "code-generation-focused model for actual file edits, when primary is better at reasoning than writing code. Falls back to primary if unset."
+  }
 }

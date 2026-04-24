@@ -3,6 +3,8 @@ name: Dependency & CVE Scan Directive
 description: Dependency vulnerability scan referenced by factory loop pre-postflight phase D1/D2. Runs language-appropriate CVE audit, fixes high + critical, documents deferred lows. Load lazily — only when the dependency phase is running.
 type: reference
 originSessionId: 0bdf5c47-1a4d-4da7-953e-97bb4a97b38f
+triggers: [cve, dep scan, dependency, vulnerability, security advisory, osv]
+agents: [critic, orchestrator]
 ---
 # Dependency & CVE Scan Directive
 

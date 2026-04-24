@@ -3,6 +3,8 @@ name: Secret Scan Directive
 description: Pre-commit secret leak scan referenced by factory loop L7 + U* + T* + every commit gate. Greps the staged diff for API keys, tokens, private keys, .env contents, and common secret patterns. Halts the commit on match. Load lazily — only when a commit is about to be made.
 type: reference
 originSessionId: 0bdf5c47-1a4d-4da7-953e-97bb4a97b38f
+triggers: [secret, leak, api key, credential, .env, pat, token, private key]
+agents: [orchestrator, critic]
 ---
 # Secret Scan Directive
 

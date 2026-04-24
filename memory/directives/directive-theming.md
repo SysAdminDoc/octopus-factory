@@ -3,6 +3,8 @@ name: Theming Directive
 description: Theme system audit + repair standard referenced by T1 and T2 of the factory loop. Covers token architecture, contrast, states across all modes, accessibility. Load lazily — only when the theming phase is running.
 type: reference
 originSessionId: 0bdf5c47-1a4d-4da7-953e-97bb4a97b38f
+triggers: [theme, theming, dark mode, light mode, tokens, contrast, wcag]
+agents: [implementer, critic]
 ---
 # Theming Directive
 
