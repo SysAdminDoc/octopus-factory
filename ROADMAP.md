@@ -8,7 +8,7 @@ Each item cites the upstream source so contributors can lift code with attributi
 
 ### 1. SQLite-backed checkpointing for crash recovery + resume
 
-**Status:** open
+**Status:** shipped in v0.2.0
 **Why:** Current state is YAML-only. A killed factory run has to restart from scratch. SQLite checkpoint lets runs resume from the last completed phase.
 
 **Source:** [LangGraph checkpoint-sqlite](https://github.com/langchain-ai/langgraph/tree/main/libs/checkpoint-sqlite) — port the schema verbatim into `.factory/state.db`:
@@ -32,7 +32,7 @@ CREATE TABLE checkpoints (
 
 ### 2. Shadow-git checkpoints for stop-on-regression rollback
 
-**Status:** open
+**Status:** shipped in v0.2.0
 **Why:** `directive-circuit-breakers.md` calls for stop-on-regression with `git reset --hard`. That works but touches user history. Shadow-git is cleaner: a separate `.git` directory with `core.worktree=<user_repo>` so snapshots never touch user history.
 
 **Source:** [Cline `CheckpointGitOperations.ts`](https://github.com/cline/cline/blob/main/src/integrations/checkpoints/CheckpointGitOperations.ts) — port `initShadowGit`, `addCheckpointFiles`, `renameNestedGitRepos` (critical: rename nested `.git → .git_disabled` before `git add` to avoid submodule errors). Plus [`CheckpointTracker.ts`](https://github.com/cline/cline/blob/main/src/integrations/checkpoints/CheckpointTracker.ts)'s `commit()`, `getDiffSet()`, `resetHead()`.
@@ -45,7 +45,7 @@ CREATE TABLE checkpoints (
 
 ### 3. Replace regex secret-scan with Gitleaks
 
-**Status:** open
+**Status:** shipped in v0.2.0
 **Why:** Current `directive-secret-scan.md` is regex-based — usual false-positive/miss tradeoff. Gitleaks is one binary, TOML config, has `.pre-commit-hooks.yaml` standard, supports `git`/`dir`/`stdin` modes, has a `SKIP=gitleaks` escape hatch.
 
 **Source:** [Gitleaks](https://github.com/gitleaks/gitleaks)
@@ -61,7 +61,7 @@ CREATE TABLE checkpoints (
 
 ### 4. Standardize dep scan on osv-scanner
 
-**Status:** open
+**Status:** shipped in v0.2.0
 **Why:** `directive-dependency-scan.md` branches per-ecosystem (npm/cargo/dotnet/pip/go). osv-scanner is one binary that walks any tree, supports 19+ lockfile types, uses the open OSV.dev DB, has experimental guided remediation for npm + Maven.
 
 **Source:** [osv-scanner](https://github.com/google/osv-scanner)
@@ -74,7 +74,7 @@ CREATE TABLE checkpoints (
 
 ### 5. Aider's commit-message prompt — drop-in
 
-**Status:** open
+**Status:** shipped in v0.2.0
 **Why:** No canonical commit-message prompt currently. Aider's is battle-tested and conventional-commits compliant.
 
 **Source:** [`Aider-AI/aider/aider/prompts.py`](https://github.com/Aider-AI/aider/blob/main/aider/prompts.py) — `commit_system` constant. Pair with `aider/repo.py:get_commit_message()` for the model-fallback loop pattern.
@@ -89,7 +89,7 @@ CREATE TABLE checkpoints (
 
 ### 6. Aider's `weak_model` / `editor_model` tier separation
 
-**Status:** open
+**Status:** shipped in v0.2.0
 **Why:** Routing presets currently pick one model per role globally. Aider's `Model(model, weak_model, editor_model)` lets you cheap out on commit msgs, lint summaries, holdout grading.
 
 **Source:** [`Aider-AI/aider/aider/models.py`](https://github.com/Aider-AI/aider/blob/main/aider/models.py)
@@ -102,7 +102,7 @@ CREATE TABLE checkpoints (
 
 ### 7. Aider's `ChatSummary` — recursive head-tail compression
 
-**Status:** open
+**Status:** shipped in v0.2.0
 **Why:** Factory loop has no in-loop context compression. Multi-iteration runs hit `/compact` interruptions. Aider splits at 50% token boundary, summarizes head with weak model, recurses if combined still oversized.
 
 **Source:** [`Aider-AI/aider/aider/history.py`](https://github.com/Aider-AI/aider/blob/main/aider/history.py) — `ChatSummary.summarize / summarize_real / summarize_all`
@@ -115,7 +115,7 @@ CREATE TABLE checkpoints (
 
 ### 8. OpenTelemetry GenAI semconv for state + session log
 
-**Status:** open
+**Status:** shipped in v0.2.0
 **Why:** Stop inventing field names. Use the published spec across all logging — makes session logs greppable by every otel-aware tool.
 
 **Source:** [OpenTelemetry GenAI agent spans](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-agent-spans/), [GenAI metrics](https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-metrics/)
@@ -137,7 +137,7 @@ CREATE TABLE checkpoints (
 
 ### 9. Cline's tiered-pricing cost function
 
-**Status:** open
+**Status:** shipped in v0.2.0
 **Why:** Octo plugin already has `cost.sh` but it doesn't handle tiered pricing, thinking-budget output price overrides, or the cache-creation/cache-read split correctly.
 
 **Source:** [`cline/cline/src/utils/cost.ts`](https://github.com/cline/cline/blob/main/src/utils/cost.ts) — `calculateApiCostInternal`
@@ -157,7 +157,7 @@ Plus the Anthropic/OpenAI input-token-counting wrapper distinction.
 
 ### 10. OpenHands microagent format for directives
 
-**Status:** open
+**Status:** shipped in v0.2.0
 **Why:** Directives are plain markdown. Adopting OpenHands' YAML-frontmatter `triggers:` field would let directives self-declare keyword activation instead of recipes hard-coding which to load.
 
 **Source:** [OpenHands microagents docs](https://docs.openhands.dev/usage/prompting/microagents-overview)
@@ -182,7 +182,7 @@ agents: [grader, critic]
 
 ### 11. promptfoo regression tests for prompts
 
-**Status:** open
+**Status:** shipped in v0.2.0
 **Why:** Prompts get patched often with no regression net. promptfoo runs (prompt × provider × test case × assertion) matrices.
 
 **Source:** [promptfoo](https://github.com/promptfoo/promptfoo)
@@ -195,7 +195,7 @@ agents: [grader, critic]
 
 ### 12. Beta-Binomial adaptive stopping — actual implementation
 
-**Status:** open
+**Status:** shipped in v0.2.0
 **Why:** `directive-debate.md` describes adaptive stopping but ships no implementation. The math is small enough to ship.
 
 **Source:** [arXiv 2510.12697](https://arxiv.org/abs/2510.12697) (paper has no public code; we ship the implementation)
