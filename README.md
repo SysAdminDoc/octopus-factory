@@ -1,6 +1,6 @@
 # octopus-factory
 
-Recipe-driven autonomous coding pipeline for [Claude Code](https://claude.ai/code) + [Claude Octopus](https://github.com/nyldn/claude-octopus). Spec-in, software-out — with build gates, secret scans, multi-provider routing, and rollback on failure.
+A recipe-driven autonomous coding pipeline for [Claude Code](https://claude.ai/code) + [Claude Octopus](https://github.com/nyldn/claude-octopus). Hand it a repo path and one prompt; it researches, builds, audits, releases — across four AI subscriptions, with build gates, secret scans, cost caps, and rollback on failure.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#install)
@@ -8,9 +8,83 @@ Recipe-driven autonomous coding pipeline for [Claude Code](https://claude.ai/cod
 
 ---
 
+## Quick example
+
+You have an existing repo. Code's a bit messy. Open ROADMAP. No release in months. You want it cleaned up, audited, and shipped.
+
+**You type:**
+
+```
+Pull up ~/repos/my-cli-tool
+```
+
+then paste the contents of `prompts/factory-loop-prompts.txt`. Send.
+
+**What happens (single-session mode, ~25 minutes, ~$2 in API spend):**
+
+```
+[1] Session log started: ~/.claude-octopus/logs/factory-my-cli-tool-20260424-153022.log
+[2] Detected: existing repo, Python CLI, 12K LOC, 84 tests, 7 ROADMAP items
+[3] Mode: single-session (no orchestrator). Below scale gate (Large-Repo Mode not engaged).
+
+[W-phase] WIP adoption
+    - 3 untracked files classified: 1 lockfile, 1 test, 1 src
+    - 3 atomic commits + push (secret scan + sacred-cow gate passed)
+
+[S-phase] AI-reference scrub
+    - Scanned 142 commit messages
+    - Found 18 with "Co-Authored-By: Claude" trailers
+    - Backup: ~/repos/backups/my-cli-tool-20260424-153211.bundle
+    - Backup branch: origin/pre-ai-scrub-20260424-153211
+    - Rewrite + force-push complete
+
+[L-phase] 3 iterations
+    Iteration 1:
+        L1a research: Gemini scanned recent CLI patterns, OSS competitors
+        L1b augment: Claude added 5 ROADMAP tasks based on gap analysis
+        L2 implement: closed 8 P0/P1 items (PEC rubrics + atomic commits)
+        L3+L4 audit: Claude rubric check (single-session mode), 2 fixes applied
+        L5 doc sync: CHANGELOG "Unreleased" updated
+        L7 commits: 11 atomic commits + push (all secret-scan passed)
+    Iteration 2: closed 4 more items, audit clean
+    Iteration 3: ROADMAP empty + audit clean → stop-early triggered
+
+[M-phase] Modularization
+    - Found 1 monolith: src/main.py (1,847 LOC)
+    - Split into: src/cli.py + src/parser.py + src/commands.py + src/io.py
+    - Tests pass identically (84/84)
+    - 4 atomic refactor commits + push
+
+[U-phase] Skipped (CLI tool, no UI)
+[T-phase] Skipped (no UI)
+
+[D-phase] Dependency scan
+    - pip-audit: 2 medium CVEs found in transitive deps
+    - Updated requests 2.31.0 → 2.32.3, urllib3 1.26.18 → 2.2.3
+    - Tests still pass
+
+[Q-phase] Postflight + release
+    Q1 /octo:security: 0 critical, 1 medium (input validation) — fixed
+    Q2 /octo:review: pass
+    Q3 release v0.4.0:
+        - Single version bump applied (manifest, README badge, CHANGELOG)
+        - Tagged v0.4.0, pushed
+        - GitHub Actions release.yml ran matrix build (win/mac/linux)
+        - Artifacts: my-cli-tool-v0.4.0-{win-x64.exe,macos-arm64,linux-x64} + SHA256SUMS
+        - Smoke-test: each artifact's --version returns "0.4.0" ✓
+        - SBOM (syft) + cosign-signed provenance attached
+    Q4 continuation brief appended to repo CLAUDE.md
+
+[Done] 19 commits, 1 release shipped, ~12 minutes wallclock, $1.87 spent.
+```
+
+You went from a messy WIP repo to a signed, multi-platform release with clean history. No prompt re-iteration. No babysitting.
+
+---
+
 ## What this is
 
-A pack of recipes, directives, scripts, configs, and prompts that turn Claude Code + the [Claude Octopus](https://github.com/nyldn/claude-octopus) plugin into a multi-agent autonomous coding pipeline. You hand it a repo path and one prompt; it runs:
+A pack of recipes, directives, scripts, configs, and prompts that turns Claude Code + the [Claude Octopus](https://github.com/nyldn/claude-octopus) plugin into a multi-agent autonomous coding pipeline. The full lifecycle in one prompt:
 
 ```
 Preflight  →  WIP-adoption  →  AI-history scrub  →  Loop (research → rubric →
@@ -19,19 +93,21 @@ implement → audit-debate → doc-sync → commit)  →  Modularization  →  U
 Release (project-type-aware build + sign + SBOM + provenance)  →  Continuation brief
 ```
 
-Across **four AI subscriptions** (Claude Max + ChatGPT Pro Codex + Gemini Pro + GitHub Copilot) with auto-fallback when any quota exhausts.
+Across **four AI subscriptions** — Claude Max, ChatGPT Pro Codex, Gemini Pro, GitHub Copilot — with auto-fallback when any quota exhausts.
 
-## Why
+## What problems this solves
 
-Three problems this solves:
+Three real problems with single-prompt AI coding:
 
-1. **One-shot prompts blow up on real repos.** A 50K LOC codebase doesn't fit in one Claude session. This pack chunks work into finite per-run iterations with persistent state across runs.
+1. **One-shot prompts blow up on real repos.** A 50K LOC codebase doesn't fit in one Claude session. The factory chunks work into finite per-run iterations with persistent state across runs (`Large-Repo Mode`).
+
 2. **Single-model verification has blind spots.** The audit phase runs a three-role debate (Grader + Critic + Defender, different model families) instead of trusting one model to grade its own work.
-3. **Provider quotas exhaust unpredictably.** Cost-balanced routing across four AI subscriptions with auto-fallback when any single quota runs out.
+
+3. **Provider quotas exhaust unpredictably.** Six routing presets spread cost across four subscriptions; if Copilot hits its monthly cap mid-run, the wrapper transparently falls back to Codex without aborting.
 
 ## Status
 
-**Alpha.** Used in production by the author across ~30 repos. APIs and config formats may change before v1.0. PRs welcome.
+**Alpha.** Used in production by the author across ~30 repos. APIs and config formats may change before v1.0. PRs welcome (see [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)).
 
 Verified working on:
 - Windows 11 + Git Bash
@@ -40,9 +116,9 @@ Verified working on:
 
 Provider stack tested:
 - Claude Max (Sonnet 4.6 / Opus 4.7 via Claude Code)
-- ChatGPT Pro (Codex CLI, gpt-5.4 / gpt-5.3-codex)
-- Gemini (CLI, gemini-2.5-flash on free tier; Pro requires API key)
-- GitHub Copilot (CLI, all Sonnet/Opus/Haiku/GPT-5.x models)
+- ChatGPT Pro (Codex CLI: gpt-5.4, gpt-5.3-codex)
+- Gemini Pro (CLI: gemini-2.5-flash on free tier; Pro models require API key)
+- GitHub Copilot (CLI: all Sonnet/Opus/Haiku/GPT-5.x backends)
 
 ## Install
 
@@ -52,65 +128,38 @@ Provider stack tested:
 - [Claude Octopus plugin](https://github.com/nyldn/claude-octopus) installed in Claude Code
 - At least one of: ChatGPT Pro (Codex CLI), Gemini Pro (Gemini CLI), GitHub Copilot subscription
 - `git`, `bash` (or Git Bash on Windows), `python` 3.10+, `jq`
-- Optional but recommended: `git-filter-repo` (for AI-scrub recipe), `cloc` (for modularization scale checks)
+- Optional but recommended: `git-filter-repo` (AI-scrub), `cloc` (modularization scale checks), `syft` (SBOM), `cosign` (artifact signing)
 
-### One-line install (macOS / Linux / Git Bash)
+### One-line install
 
 ```bash
-git clone https://github.com/<your-username>/octopus-factory.git ~/octopus-factory && \
+git clone https://github.com/SysAdminDoc/octopus-factory.git ~/octopus-factory && \
   bash ~/octopus-factory/bin/install.sh
 ```
 
+The installer:
+- Drops `bin/` scripts into `~/.claude-octopus/bin/` (made executable)
+- Drops `config/presets/` and `config/workflows/` into `~/.claude-octopus/config/`
+- Initializes `providers.json` to the `balanced` preset (if not already present)
+- Drops `prompts/` into `~/repos/ai-prompts/`
+- Tells you where to copy `memory/recipes/` and `memory/directives/` (project-specific)
+- Suggests applying the optional Claude Octopus patches via `bash patches/apply.sh`
+
 ### Manual install
 
-1. **Clone:**
-   ```bash
-   git clone https://github.com/<your-username>/octopus-factory.git ~/octopus-factory
-   ```
-
-2. **Drop recipes/directives into Claude Code's memory:**
-   ```bash
-   # Path varies by OS; this is the Claude Code memory dir for your active project
-   cp -r ~/octopus-factory/memory/* ~/.claude/projects/<your-project>/memory/
-   ```
-
-3. **Drop scripts into your octopus bin:**
-   ```bash
-   mkdir -p ~/.claude-octopus/bin
-   cp ~/octopus-factory/bin/*.sh ~/.claude-octopus/bin/
-   chmod +x ~/.claude-octopus/bin/*.sh
-   ```
-
-4. **Drop config into your octopus config:**
-   ```bash
-   mkdir -p ~/.claude-octopus/config/{presets,workflows}
-   cp ~/octopus-factory/config/presets/* ~/.claude-octopus/config/presets/
-   cp ~/octopus-factory/config/workflows/* ~/.claude-octopus/config/workflows/
-   # Pick a preset to start
-   cp ~/octopus-factory/config/presets/balanced.json ~/.claude-octopus/config/providers.json
-   ```
-
-5. **Apply the optional patches** (for per-role Copilot model selection + auto-fallback to Codex):
-   ```bash
-   bash ~/octopus-factory/patches/apply.sh
-   ```
-
-6. **Drop prompts where you'll find them:**
-   ```bash
-   mkdir -p ~/repos/ai-prompts
-   cp ~/octopus-factory/prompts/* ~/repos/ai-prompts/
-   ```
+See `bin/install.sh` for the exact steps if you'd rather copy them by hand.
 
 ### Verify
 
 ```bash
 ~/.claude-octopus/bin/octo-route.sh status
-# Should show your active routing mode + list of available presets
 ```
+
+Should print the active routing mode and a list of available presets.
 
 ## Use
 
-### First run (one prompt, zero fill-in)
+### The default invocation (one prompt, zero fill-in)
 
 In a Claude Code session, type:
 
@@ -118,14 +167,16 @@ In a Claude Code session, type:
 Pull up ~/repos/<your-project>
 ```
 
-Then paste the contents of `prompts/factory-loop-prompts.txt`. Send. The factory does its thing.
+Then paste the contents of `prompts/factory-loop-prompts.txt`. Send.
 
 The prompt auto-detects:
-- New project (no `.git`) vs existing
-- Stack from build files
-- Goal from ROADMAP / pending releases / open audit findings
-- Iteration count from project state
-- Scope guards from your repo's `CLAUDE.md`
+- **New project (no `.git`)** vs existing
+- **Stack** from build files
+- **Goal** from ROADMAP / pending releases / open audit findings
+- **Iteration count** from project state
+- **Scope guards** from your repo's `CLAUDE.md`
+- **Execution mode** based on whether the orchestrator is available
+- **Large-Repo Mode** auto-engages if scale exceeds 50K LOC / 500 files / 1K tests / 30 ROADMAP items
 
 Nothing else to fill in.
 
@@ -142,6 +193,8 @@ Nothing else to fill in.
 ~/.claude-octopus/bin/octo-route.sh rotate         # cycle to next mode
 ```
 
+Pick `copilot-heavy` if you want to preserve Claude Max + ChatGPT Pro quotas. Pick `balanced` for the default mix. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for what each preset routes where.
+
 ### Other recipes
 
 | Recipe | Trigger | What it does |
@@ -156,7 +209,8 @@ Nothing else to fill in.
 
 ```
 memory/
-  recipes/        — workflow specs (factory-loop, ai-scrub, pdf-redesign, etc.)
+  recipes/        — workflow specs (factory-loop, ai-scrub, pdf-redesign,
+                    pdf-derivatives, release-build)
   directives/     — phase-specific behavior (audit, debate, ux-polish, theming,
                     dep-scan, secret-scan, modularization, circuit-breakers)
   reference/      — multi-account-rotation guide
@@ -164,6 +218,7 @@ bin/
   octo-route.sh        — swap routing presets
   ai-scrub.sh          — git history rewrite (removes AI attribution)
   copilot-fallback.sh  — Copilot wrapper with auto-fallback to Codex on quota error
+  install.sh           — one-step installer
 config/
   presets/             — 6 routing modes (balanced, copilot-heavy, claude-heavy,
                          codex-heavy, direct-only, copilot-only)
@@ -171,7 +226,7 @@ config/
 prompts/
   *.txt                — copy-paste-ready zero-fill prompts
 patches/
-  *.patch              — small patches to octo plugin for per-role Copilot
+  *.md / apply.sh      — optional patches to octo plugin for per-role Copilot
                          model selection + cross-provider fallback chain
 docs/
   ARCHITECTURE.md      — how the pieces fit together
@@ -179,25 +234,21 @@ docs/
   CONTRIBUTING.md      — how to extend
 ```
 
-## Key design principles
+## Design principles
 
-- **Recipe is the source of truth.** Prompts are short and defer to recipes; recipes defer to per-phase directives. Directives are loaded lazily so context stays focused.
-- **Behavior-preserving where possible.** Modularization phase mandates identical test results before/after. Audit phase root-causes bugs instead of suppressing.
+- **Recipe is the source of truth.** Prompts are short and defer to recipes; recipes defer to per-phase directives. Directives load lazily so context stays focused.
+- **Behavior-preserving where it matters.** The modularization phase mandates identical test results before and after. The audit phase root-causes bugs instead of suppressing them.
 - **Deterministic safeguards over model self-discipline.** Loop detector, per-agent budgets, sacred-cow file manifest, secret scan, stop-on-regression — all non-AI gates.
 - **Honest fallback.** When the orchestrator isn't available the recipe runs in single-session mode and declares the degradation in the log. When a provider quota exhausts, the wrapper transparently routes to a fallback.
 - **Atomic commits.** Per-task in Large-Repo Mode. Per-logical-change in normal mode. Never mega-commits.
-- **No AI-attribution in committed code.** L7 commit gate enforces role-based commit messages; the AI-scrub recipe rewrites history of repos that already have attribution.
+- **No AI-attribution in committed code.** The L7 commit gate enforces role-based commit messages; the AI-scrub recipe rewrites history of repos that already have attribution.
 
 ## Caveats
 
-- **Premium AI subscriptions assumed.** The default `balanced` mode expects Claude Max + ChatGPT Pro + Copilot. The `copilot-only` preset works on Copilot alone. `direct-only` works without Copilot.
+- **Premium AI subscriptions assumed.** The default `balanced` mode expects Claude Max + ChatGPT Pro + Copilot. The `copilot-only` preset works on Copilot alone. The `direct-only` preset works without Copilot.
 - **Image generation** requires either an OpenAI API key (for `gpt-image-1`) or fallback to Gemini's image model (free tier sufficient for most uses).
 - **Windows quirks documented**, but most testing happened on Windows 11 + Git Bash. macOS / Linux paths exist but get less rotation.
-- **Quotas burn.** A typical factory run consumes roughly $1-3 in API usage (or equivalent Claude Max / Copilot Premium Requests). Heavy multi-iteration runs can hit $10+. Monitor `OCTOPUS_FACTORY_MAX_SPEND` env var.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+- **Quotas burn.** A typical factory run consumes roughly $1-3 in API usage (or equivalent Claude Max / Copilot Premium Requests). Heavy multi-iteration runs can hit $10+. Monitor via `OCTOPUS_FACTORY_MAX_SPEND` env var.
 
 ## Acknowledgments
 
@@ -209,16 +260,6 @@ Built on top of [Claude Octopus](https://github.com/nyldn/claude-octopus) by nyl
 - Factory's anchored summarization pattern
 - SLSA framework + Sigstore (release supply-chain hardening)
 
-## Contributing
-
-PRs welcome. See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines. Specific areas where help is wanted:
-
-- macOS / Linux portability fixes
-- Additional preset configurations for other AI subscription combos
-- Stack-specific build recipes for languages not yet covered (Elixir, Swift, Kotlin/Native, etc.)
-- Investigation of the orchestrator's quality-gate timing on Windows
-- Bridge work to make `factory-loop.yaml` invokable directly via `orchestrate.sh --workflow <name>`
-
 ## Related projects
 
 - [Claude Octopus](https://github.com/nyldn/claude-octopus) — the orchestration framework this builds on
@@ -226,3 +267,17 @@ PRs welcome. See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines. Specifi
 - [Codex CLI](https://github.com/openai/codex-cli) — OpenAI's CLI
 - [Gemini CLI](https://github.com/google-gemini/gemini-cli) — Google's CLI
 - [GitHub Copilot CLI](https://docs.github.com/en/copilot/github-copilot-in-the-cli) — GitHub's CLI
+
+## Contributing
+
+PRs welcome. See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md). Specific areas where help is wanted:
+
+- macOS / Linux portability fixes
+- Additional preset configurations for other AI subscription combos
+- Stack-specific build recipes for languages not yet covered (Elixir, Swift, Kotlin/Native, Tauri, Flutter, etc.)
+- Investigation of the orchestrator's quality-gate timing on Windows
+- Bridge work to make `factory-loop.yaml` invokable directly via `orchestrate.sh --workflow <name>`
+
+## License
+
+MIT — see [LICENSE](LICENSE).
