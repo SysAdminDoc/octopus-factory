@@ -2,6 +2,7 @@
 
 A recipe-driven autonomous coding pipeline for [Claude Code](https://claude.ai/code) + [Claude Octopus](https://github.com/nyldn/claude-octopus). Hand it a repo path and one prompt; it researches, builds, audits, releases — across four AI subscriptions, with build gates, secret scans, cost caps, and rollback on failure.
 
+[![CI](https://github.com/SysAdminDoc/octopus-factory/actions/workflows/ci.yml/badge.svg)](https://github.com/SysAdminDoc/octopus-factory/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#install)
 [![Status](https://img.shields.io/badge/status-alpha-orange.svg)](#status)

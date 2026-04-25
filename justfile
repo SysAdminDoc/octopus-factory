@@ -126,6 +126,11 @@ hooks-uninstall:
 test:
     cd tests/prompts && npx promptfoo eval
 
+# Run bats-core unit tests (syntax / preset / justfile smoke).
+[group('dev')]
+test-bats *ARGS:
+    @bats tests/bats/ {{ARGS}}
+
 # Lint all bash scripts with shellcheck (skips if shellcheck not installed).
 [group('dev')]
 lint:

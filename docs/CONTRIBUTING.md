@@ -40,6 +40,22 @@ git add config/presets/                            # stage source + generated to
 
 `just preset-verify` is what the pre-commit hook runs; you can run it yourself any time.
 
+## Testing
+
+`tests/bats/` holds [bats-core](https://github.com/bats-core/bats-core) tests covering bash-syntax sanity, preset structure + drift, and justfile recipes. Run locally with:
+
+```bash
+just test-bats              # all suites
+just test-bats --tap        # TAP output (used in CI)
+bats tests/bats/syntax.bats # one suite
+```
+
+Install bats: `npm install -g bats` (cross-platform), `brew install bats-core`, or `apt install bats`.
+
+The same suite runs in GitHub Actions on every push + PR across Ubuntu / macOS / Windows (Git Bash) — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml). CI also runs `just preset-verify` to catch generated-artifact drift independently of the pre-commit hook.
+
+When adding new bash scripts under `bin/` or new presets, the existing tests will cover them automatically (the bash-syntax pass + JSON-validity pass iterate over the directories). Add focused `@test` blocks in the relevant `.bats` file when introducing a new behavior worth gating on.
+
 ## What to keep in mind
 
 ### Recipes are the source of truth

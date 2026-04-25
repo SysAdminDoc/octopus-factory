@@ -16,6 +16,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 - `.githooks/pre-commit` — repo-local git hook that runs `preset-verify` whenever any `config/presets/` file (preset, overlay, or build script) is staged. Blocks commits where a generated preset has drifted from its source, with a message naming the offending file and the fix (`just preset-build && git add config/presets/`). `--no-verify` bypass available for intentional skips.
 - `just hooks-install` / `just hooks-uninstall` — set/unset `core.hooksPath = .githooks`.
 - `docs/CONTRIBUTING.md` gains a **First-time setup** section pointing at `just hooks-install`, and an **Editing routing presets** section documenting the overlay workflow.
+- `tests/bats/` — first automated test suite. 18 tests across 3 files: `syntax.bats` (`bash -n` on every shell script + executability), `presets.bats` (JSON validity, required schema fields, `_mode` ↔ filename, `build.sh --verify` clean, idempotent rebuild), `justfile.bats` (recipes parse + run; auto-skip if `just` not installed). Catches the kind of silent failure that motivated v0.5.1's codex-direct workaround.
+- `just test-bats` recipe (passes flags through — `just test-bats --tap` for CI output).
+- `.github/workflows/ci.yml` — GitHub Actions matrix (Ubuntu / macOS / Windows Git Bash) running on every push to `main` + every PR. Steps: install just (extractions/setup-just) + bats (bats-core/bats-action) → `just preset-verify` → `just test-bats --tap`. CI badge added to README.
+- `docs/CONTRIBUTING.md` gains a **Testing** section with local commands + CI link.
 
 ### Changed
 - Routing presets `claude-heavy`, `codex-heavy`, `copilot-only`, `direct-only` now include `providers.codex.image: "gpt-image-1"` in their provider catalog (was previously only in `balanced` + `copilot-heavy`). Semantically a no-op since image-routing decisions live in `routing.roles.image`, not the catalog — but consistent with the other two presets and matches what `_base.json` defines. Catalog drift fixed by build pipeline.
