@@ -212,6 +212,49 @@ require_nonnegative_number() {
     fi
 }
 
+require_duration() {
+    local value="$1"
+    if [[ ! "$value" =~ ^[1-9][0-9]*[hm]$ ]]; then
+        echo "factory-overnight: --duration must be a positive duration ending in h or m (e.g. 4h, 90m)" \
+            >&2
+        exit 1
+    fi
+}
+
+parse_hhmm_epoch() {
+    local opt="$1"
+    local value="$2"
+    local today
+
+    if [[ ! "$value" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]]; then
+        echo "factory-overnight: $opt must be HH:MM in 24-hour time" >&2
+        exit 1
+    fi
+
+    today="$(date +%Y-%m-%d)"
+    if date -d "$today $value" +%s 2>/dev/null; then
+        return 0
+    fi
+    if date -j -f "%Y-%m-%d %H:%M" "$today $value" +%s 2>/dev/null; then
+        return 0
+    fi
+
+    echo "factory-overnight: could not parse $opt value '$value' with this system's date command" \
+        >&2
+    exit 1
+}
+
+format_epoch() {
+    local epoch="$1"
+    if date -d "@$epoch" "+%Y-%m-%d %H:%M:%S %Z" 2>/dev/null; then
+        return 0
+    fi
+    if date -r "$epoch" "+%Y-%m-%d %H:%M:%S %Z" 2>/dev/null; then
+        return 0
+    fi
+    printf 'epoch %s\n' "$epoch"
+}
+
 LOCK_FILE="$HOME/.factory-overnight.lock"
 STOP_FILE="$HOME/.factory-overnight.stop"
 PAUSE_FILE="$HOME/.factory-overnight.pause"
@@ -227,7 +270,9 @@ while [[ $# -gt 0 ]]; do
         --start-time)
             require_value "$1" "${2:-}"; START_TIME="$2"; shift 2 ;;
         --duration)
-            require_value "$1" "${2:-}"; DURATION="$2"; shift 2 ;;
+            require_value "$1" "${2:-}"
+            require_duration "$2"
+            DURATION="$2"; shift 2 ;;
         --max-cycles)
             require_value "$1" "${2:-}"
             require_nonnegative_int "$1" "$2"
@@ -392,13 +437,11 @@ if [[ -n "$DURATION" ]]; then
     case "$DURATION" in
         *h) END_EPOCH=$(( NOW_EPOCH + ${DURATION%h} * 3600 )) ;;
         *m) END_EPOCH=$(( NOW_EPOCH + ${DURATION%m} * 60 )) ;;
-        *)  echo "factory-overnight: --duration must end in h or m (e.g. 4h, 90m)" >&2; exit 1 ;;
     esac
 fi
 
 if [[ -n "$END_TIME" ]]; then
-    TODAY=$(date +%Y-%m-%d)
-    TARGET_EPOCH=$(date -d "$TODAY $END_TIME" +%s 2>/dev/null || date +%s)
+    TARGET_EPOCH="$(parse_hhmm_epoch "--until" "$END_TIME")" || exit 1
     if [[ "$TARGET_EPOCH" -le "$NOW_EPOCH" ]]; then
         TARGET_EPOCH=$(( TARGET_EPOCH + 86400 ))
     fi
@@ -408,8 +451,7 @@ if [[ -n "$END_TIME" ]]; then
 fi
 
 if [[ -n "$START_TIME" ]]; then
-    TODAY=$(date +%Y-%m-%d)
-    START_EPOCH=$(date -d "$TODAY $START_TIME" +%s 2>/dev/null || echo 0)
+    START_EPOCH="$(parse_hhmm_epoch "--start-time" "$START_TIME")" || exit 1
     if [[ "$START_EPOCH" -le "$NOW_EPOCH" ]]; then
         START_EPOCH=$(( START_EPOCH + 86400 ))
     fi
@@ -467,8 +509,8 @@ Round-robin:        $($NO_ROTATE && echo no || echo yes)
 Verbose output:     $($QUIET && echo no || echo yes)
 Heartbeat:          ${HEARTBEAT_SEC}s
 Color:              $USE_COLOR
-Start time:         ${START_TIME:-now} ($([ "$START_EPOCH" -gt 0 ] && date -d "@$START_EPOCH" || echo immediately))
-End time:           ${END_TIME:-${DURATION:-unbounded}} ($([ "$END_EPOCH" -gt 0 ] && date -d "@$END_EPOCH" || echo unbounded))
+Start time:         ${START_TIME:-now} ($([ "$START_EPOCH" -gt 0 ] && format_epoch "$START_EPOCH" || echo immediately))
+End time:           ${END_TIME:-${DURATION:-unbounded}} ($([ "$END_EPOCH" -gt 0 ] && format_epoch "$END_EPOCH" || echo unbounded))
 Healthcheck URL:    ${HEALTHCHECK_URL:-(none)}
 Notify specs:       ${NOTIFY_SPECS[*]:-(none)}
 Resume from:        ${RESUME_RUN_ID:-(fresh)}
@@ -686,7 +728,7 @@ write_status
 printf '\n%s━━━ factory-overnight starting ━━━%s\n' "$C_BOLD" "$C_RST"
 log "Run ID:           $RUN_ID"
 log "Repos (${#REPOS[@]}):    $(printf '%s ' "${REPOS[@]}")"
-log "Until:            ${END_EPOCH:-unbounded} ($([ "$END_EPOCH" -gt 0 ] && date -d "@$END_EPOCH" || echo unbounded))"
+log "Until:            ${END_EPOCH:-unbounded} ($([ "$END_EPOCH" -gt 0 ] && format_epoch "$END_EPOCH" || echo unbounded))"
 log "Max cycles:       ${MAX_CYCLES:-unlimited}"
 log "Max spend total:  \$$MAX_SPEND_TOTAL"
 log "Sleep:            ${SLEEP_SEC}s"

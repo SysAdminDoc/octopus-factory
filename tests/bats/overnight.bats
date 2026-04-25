@@ -60,6 +60,28 @@ setup() {
     [[ "$stderr" == *"--max-spend-total must be a non-negative number"* ]]
 }
 
+@test "factory-overnight: rejects invalid time values clearly" {
+    run --separate-stderr bash "$SCRIPT" "$REPO_ROOT" --show-config --duration 0h
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"--duration must be a positive duration"* ]]
+
+    run --separate-stderr bash "$SCRIPT" "$REPO_ROOT" --show-config --until 25:00
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"--until must be HH:MM in 24-hour time"* ]]
+
+    run --separate-stderr bash "$SCRIPT" "$REPO_ROOT" --show-config --start-time 9am
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"--start-time must be HH:MM in 24-hour time"* ]]
+}
+
+@test "factory-overnight: --show-config supports wall-clock times" {
+    run --separate-stderr bash "$SCRIPT" "$REPO_ROOT" \
+        --show-config --until 23:59 --start-time 00:01 --no-color
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Start time:"* ]]
+    [[ "$output" == *"End time:"* ]]
+}
+
 @test "factory-overnight: rejects missing repo arg" {
     run --separate-stderr bash "$SCRIPT"
     [ "$status" -eq 1 ]
