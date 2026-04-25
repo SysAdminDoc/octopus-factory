@@ -129,14 +129,17 @@ class FormBuilder:
             row_layout.setContentsMargins(0, 0, 0, 0)
             row_layout.setSpacing(5)
 
-            label = QLabel(f.label)
-            label.setObjectName("field_label")
-            label.setWordWrap(True)
             widget = self._make_widget(f)
             widget.setAccessibleName(f.label)
+            if f.help:
+                widget.setToolTip(f.help)
             self._widgets[f.key] = widget
 
-            row_layout.addWidget(label)
+            if f.kind != "checkbox":
+                label = QLabel(f.label)
+                label.setObjectName("field_label")
+                label.setWordWrap(True)
+                row_layout.addWidget(label)
             row_layout.addWidget(widget)
             if f.help:
                 help_lbl = QLabel(f.help)
@@ -215,7 +218,8 @@ class FormBuilder:
 
         if f.kind == "checkbox":
             w = QCheckBox()
-            w.setText("Enabled")
+            w.setObjectName("option_checkbox")
+            w.setText(f.label)
             w.setChecked(bool(f.default))
             w.toggled.connect(self._on_change)
             return w

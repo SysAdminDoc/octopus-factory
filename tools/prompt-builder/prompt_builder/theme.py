@@ -315,6 +315,17 @@ QCheckBox {{
     padding: 6px 0;
 }}
 
+QCheckBox#option_checkbox {{
+    color: {SUBTEXT_1};
+    font-size: 9.5pt;
+    font-weight: 600;
+    padding: 4px 0 2px 0;
+}}
+
+QCheckBox#option_checkbox:hover {{
+    color: {TEXT};
+}}
+
 QCheckBox#compact_checkbox {{
     color: {SUBTEXT_0};
     font-size: 9pt;
