@@ -47,6 +47,16 @@ QMainWindow, QDialog {{
     background-color: {BASE};
 }}
 
+QMessageBox {{
+    background-color: {BASE};
+}}
+
+QMessageBox QLabel {{
+    background-color: transparent;
+    color: {TEXT};
+    line-height: 135%;
+}}
+
 QSplitter::handle {{
     background-color: {MANTLE};
     width: 2px;

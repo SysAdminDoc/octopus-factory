@@ -36,10 +36,12 @@ window = PromptBuilderWindow()
 assert window.template_list.count() == len(list_templates())
 assert window.template_list.itemDelegate() is not None
 assert window.template_list.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+window._load_template("pdf_redesign", restore_saved=False)
 window.search_edit.setText("pdf")
 assert "found" in window.nav_count_label.text()
 assert window.preview_notice.text()
 assert window.copy_btn.property("tone") in {"ready", "warning"}
+assert not window.reset_btn.isEnabled()
 
 fields = TEMPLATES["pdf_redesign"].fields
 assert window._is_required_field(fields[0])
@@ -58,6 +60,14 @@ assert window.regenerate_btn.text() == "Rebuild"
 window.preview.clear()
 assert not window.copy_btn.isEnabled()
 assert not window.save_btn.isEnabled()
+window._regenerate()
+window._current_form._widgets["pdf_path"].setText("/tmp/source.pdf")
+assert window.reset_btn.isEnabled()
+assert window.reset_btn.property("tone") == "warning"
+window._confirm_reset_form = lambda tpl, changed_fields: True
+window._reset_form()
+assert not window.reset_btn.isEnabled()
+assert window._current_form.values()["pdf_path"] == ""
 window.close()
 PY
     [ "$status" -eq 0 ]

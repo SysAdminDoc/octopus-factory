@@ -35,6 +35,7 @@ from PyQt6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
@@ -509,7 +510,7 @@ class PromptBuilderWindow(QMainWindow):
 
         nav_footer = QLabel(
             "Ctrl+F searches. Ctrl+Shift+C copies. Ctrl+S saves. "
-            "F5 regenerates. Ctrl+R resets."
+            "F5 regenerates. Ctrl+R resets the current template."
         )
         nav_footer.setObjectName("nav_footer")
         nav_footer.setWordWrap(True)
@@ -611,10 +612,10 @@ class PromptBuilderWindow(QMainWindow):
         self.regenerate_btn.setToolTip("Restore the preview from the current form values.")
         self.regenerate_btn.clicked.connect(self._regenerate)
 
-        self.reset_btn = QPushButton("Reset")
+        self.reset_btn = QPushButton("Reset…")
         self.reset_btn.setObjectName("secondary")
         self.reset_btn.setMinimumHeight(40)
-        self.reset_btn.setToolTip("Clear saved values and restore template defaults.")
+        self.reset_btn.setToolTip("No saved changes to reset.")
         self.reset_btn.clicked.connect(self._reset_form)
 
         button_row = QHBoxLayout()
@@ -671,7 +672,7 @@ class PromptBuilderWindow(QMainWindow):
         copy_action.triggered.connect(self._copy_to_clipboard)
         self.addAction(copy_action)
 
-        reset_action = QAction("Reset", self)
+        reset_action = QAction("Reset template", self)
         reset_action.setShortcut(QKeySequence("Ctrl+R"))
         reset_action.triggered.connect(self._reset_form)
         self.addAction(reset_action)
@@ -806,6 +807,47 @@ class PromptBuilderWindow(QMainWindow):
             return {}
         return value if isinstance(value, dict) else {}
 
+    def _default_values_for(self, tpl: Template) -> dict[str, Any]:
+        values: dict[str, Any] = {}
+        for field in tpl.fields:
+            default = field.default
+            if field.kind == "int":
+                values[field.key] = int(default) if default else 0
+            elif field.kind == "checkbox":
+                values[field.key] = bool(default)
+            elif field.kind == "choice":
+                if default in field.choices:
+                    values[field.key] = str(default)
+                else:
+                    values[field.key] = field.choices[0] if field.choices else ""
+            else:
+                values[field.key] = "" if default is None else str(default)
+        return values
+
+    def _normalized_field_value(self, field: Field, value: Any) -> Any:
+        if field.kind == "int":
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return 0
+        if field.kind == "checkbox":
+            return bool(value)
+        return "" if value is None else str(value)
+
+    def _changed_form_fields(self) -> list[str]:
+        if not self._current_form or not self._current_template_key:
+            return []
+        tpl = TEMPLATES[self._current_template_key]
+        values = self._current_form.values()
+        defaults = self._default_values_for(tpl)
+        changed: list[str] = []
+        for field in tpl.fields:
+            current = self._normalized_field_value(field, values.get(field.key))
+            default = self._normalized_field_value(field, defaults.get(field.key))
+            if current != default:
+                changed.append(field.label)
+        return changed
+
     def _save_current_form_values(self):
         if not self._current_form or not self._current_template_key:
             return
@@ -817,6 +859,30 @@ class PromptBuilderWindow(QMainWindow):
     def _clear_current_form_values(self):
         if self._current_template_key:
             self._settings.remove(self._template_values_key(self._current_template_key))
+
+    def _confirm_reset_form(self, tpl: Template, changed_fields: list[str]) -> bool:
+        field_label = "field" if len(changed_fields) == 1 else "fields"
+        details = ", ".join(changed_fields[:4])
+        if len(changed_fields) > 4:
+            details = f"{details}, and {len(changed_fields) - 4} more"
+
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setWindowTitle("Reset template")
+        box.setText(f"Reset {tpl.label} to defaults?")
+        box.setInformativeText(
+            f"This clears saved values for {len(changed_fields)} changed "
+            f"{field_label}: {details}."
+        )
+        box.setDetailedText(
+            "Manual preview edits are discarded, and future openings of this "
+            "template will start from its defaults."
+        )
+        box.setStandardButtons(
+            QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Reset
+        )
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        return box.exec() == QMessageBox.StandardButton.Reset
 
     def _regenerate(self):
         if not self._current_form or not self._current_template_key:
@@ -1022,11 +1088,21 @@ class PromptBuilderWindow(QMainWindow):
                 self.statusBar().showMessage(f"Save failed: {exc}", 6000)
 
     def _reset_form(self):
-        if self._current_template_key:
-            key = self._current_template_key
-            self._clear_current_form_values()
-            self._load_template(key, restore_saved=False)
-            self.statusBar().showMessage("Form reset to defaults.", 3000)
+        if not self._current_template_key:
+            return
+        key = self._current_template_key
+        tpl = TEMPLATES[key]
+        changed_fields = self._changed_form_fields()
+        if not changed_fields:
+            self.statusBar().showMessage("Already using template defaults.", 3000)
+            self._update_action_states()
+            return
+        if not self._confirm_reset_form(tpl, changed_fields):
+            self.statusBar().showMessage("Reset canceled.", 2500)
+            return
+        self._clear_current_form_values()
+        self._load_template(key, restore_saved=False)
+        self.statusBar().showMessage("Template values reset to defaults.", 3500)
 
     def _on_preview_text_changed(self):
         if not self._rendering_preview:
@@ -1134,9 +1210,13 @@ class PromptBuilderWindow(QMainWindow):
 
         self.copy_btn.setEnabled(has_text)
         self.save_btn.setEnabled(has_text)
+        changed_fields = self._changed_form_fields()
+        can_reset = bool(changed_fields)
+        self.reset_btn.setEnabled(can_reset)
         self.copy_btn.setProperty("tone", copy_tone)
         self.save_btn.setProperty("tone", secondary_tone)
         self.regenerate_btn.setProperty("tone", secondary_tone)
+        self.reset_btn.setProperty("tone", "warning" if can_reset else "")
 
         if self._preview_is_manual:
             self.regenerate_btn.setText("Rebuild")
@@ -1163,7 +1243,20 @@ class PromptBuilderWindow(QMainWindow):
             self.copy_btn.setToolTip("Generate a prompt before copying.")
             self.save_btn.setToolTip("Generate a prompt before saving.")
 
-        for widget in (self.copy_btn, self.save_btn, self.regenerate_btn):
+        if can_reset:
+            label = "field" if len(changed_fields) == 1 else "fields"
+            self.reset_btn.setToolTip(
+                f"Reset {len(changed_fields)} changed {label} to template defaults."
+            )
+        else:
+            self.reset_btn.setToolTip("No saved changes to reset.")
+
+        for widget in (
+            self.copy_btn,
+            self.save_btn,
+            self.regenerate_btn,
+            self.reset_btn,
+        ):
             widget.style().unpolish(widget)
             widget.style().polish(widget)
 
