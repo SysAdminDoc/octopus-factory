@@ -292,6 +292,73 @@ judge quota impact before kicking off.
 Begin.
 
 =============================================================================
+ OPTIONAL: 1-HOUR UNATTENDED RUN (paste-in prompt)
+=============================================================================
+ How to use:
+   1. Tell Claude: "Run a 1-hour overnight on ~/repos/<PROJECT>"
+      (or paste the full path)
+   2. Copy the prompt below (between the ===== lines)
+   3. Paste. Send. Claude launches the wrapper, hands back the run-id, exits.
+   4. Wrapper runs detached for 1 hour. Check progress any time with:
+        just overnight --status
+        tail -f ~/.claude-octopus/logs/overnight/<run-id>/overnight.log
+
+ Why this prompt instead of the long interactive one above:
+   The interactive prompt keeps Claude busy in this session for the whole
+   run. The overnight wrapper is detached — Claude's job is just to launch
+   it, confirm it's alive, then return so this session is free.
+
+=============================================================================
+ THE 1-HOUR PROMPT — copy everything between the lines below
+=============================================================================
+
+Launch a 1-hour overnight factory run on the repo path I just gave you.
+Autonomous mode — decide and proceed.
+
+Pre-flight:
+1. Run `bash ~/repos/octopus-factory/bin/factory-doctor.sh` and surface
+   the summary line. Halt only on hard failures (exit 1). Soft warnings
+   (exit 2) are OK — note them and proceed.
+2. Confirm the active routing preset is `copilot-heavy` (the doctor's
+   first OK line tells you). If it's something else, swap it via
+   `bash ~/.claude-octopus/bin/octo-route.sh copilot-heavy` first.
+3. Confirm the target repo exists, is a git repo, and has a clean OR
+   adoptable working tree (W-phase will handle uncommitted work).
+
+Launch:
+4. Run the wrapper detached (so this session is free to return):
+     nohup bash ~/repos/octopus-factory/bin/factory-overnight.sh \
+         <THE_PATH_I_GAVE_YOU> \
+         --duration 1h \
+         --max-spend-total 10 \
+         --convergence-rotations 3 \
+         > /tmp/factory-overnight-launch.log 2>&1 &
+   Capture the background PID (`echo $!`) and the run-id (read it from
+   the wrapper's first event log line).
+5. Wait ~10 seconds, then run `just overnight --status` to confirm a
+   live session shows up. If the status file doesn't exist yet, retry
+   once after another 10 seconds — the wrapper takes a moment to
+   initialize.
+
+Report back:
+6. Surface to me:
+     - Doctor summary (one line)
+     - Active preset (one line)
+     - Background PID
+     - Run ID
+     - Path to the wrapper's event log
+     - Path to the status file
+     - Expected end time (now + 1h)
+     - Sample commands to check progress / halt early
+7. Then exit cleanly. Do NOT keep this session blocked watching the run.
+
+If anything in steps 1-5 fails: stop, surface the error, do NOT silently
+proceed with a partial launch. Better to fail loudly than launch a
+broken overnight run.
+
+Begin.
+
+=============================================================================
  OPTIONAL: OVERNIGHT MODE (multi-hour autonomous run via external wrapper)
 =============================================================================
 
