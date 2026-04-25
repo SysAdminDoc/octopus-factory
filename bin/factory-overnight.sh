@@ -242,16 +242,18 @@ cycles_remaining() {
     fi
     # MAX_CYCLES=0 (unlimited): estimate from remaining wall-clock so per-cycle
     # budget math doesn't divide total spend by 9999 and round to $0.00.
-    # Assume each cycle consumes at least SLEEP_SEC + 60s of real work.
+    # Assume each cycle does ~10min of real LLM work (factory loop is heavy);
+    # tune via OVERNIGHT_EST_CYCLE_SEC env var if your cycles run faster.
+    local floor_sec="${OVERNIGHT_EST_CYCLE_SEC:-600}"
     if [[ "${END_EPOCH:-0}" -gt 0 ]]; then
         local now=$(date +%s)
-        local est_cycle=$(( SLEEP_SEC + 60 ))
+        local est_cycle=$(( SLEEP_SEC + floor_sec ))
         local rem=$(( (END_EPOCH - now) / est_cycle ))
         (( rem < 1 )) && rem=1
-        (( rem > 100 )) && rem=100
+        (( rem > 20 )) && rem=20
         echo "$rem"
     else
-        echo "100"  # truly unbounded — cap so budget math stays sane
+        echo "20"  # truly unbounded — cap so budget math stays sane
     fi
 }
 
