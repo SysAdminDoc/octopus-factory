@@ -4,6 +4,160 @@ Prioritized integration plan based on a survey of related projects (Aider, Cline
 
 Each item cites the upstream source so contributors can lift code with attribution. Items are ordered by leverage — highest-impact first.
 
+## External project research expansion — added 2026-04-25
+
+**Status:** proposed backlog
+**Goal:** push octopus-factory beyond a recipe/prompt bundle into a reproducible agent-ops platform: measurable, replayable, security-hardened, portable across developer machines, and strong enough to benchmark its own factory runs.
+
+This pass surveyed current agent frameworks, coding-agent evaluation systems, prompt/security test harnesses, CI hardening tools, and context-retrieval projects. The best ideas are not "import a big framework"; the leverage is to lift their operating patterns into octopus-factory's bash-first architecture.
+
+### Tier 0 — make factory runs measurable and replayable
+
+#### 1. First-class trajectory ledger for every factory run
+
+**Source:** [SWE-agent Agent docs](https://swe-agent.com/latest/reference/agent/) and [mini-SWE-agent runner](https://mini-swe-agent.com/latest/usage/mini/)
+**Finding:** SWE-agent stores rich per-instance `.traj` data: history, environment state, model stats, replay config, and hooks around agent setup/steps. mini-SWE-agent defaults to a `last_mini_run.traj.json` output path, making trajectory capture a normal artifact rather than an afterthought.
+**Why it matters:** octopus-factory already logs phases, state, costs, and commits, but the artifacts are split across status files, session logs, shadow checkpoints, and commit history. A single trajectory schema would make a failed run replayable, auditable, and comparable across models.
+**Implementation:**
+- Add `.factory/runs/<run_id>/trajectory.jsonl` as the canonical append-only event stream.
+- Emit one normalized event for: prompt dispatch, model/provider choice, tool command, command output summary, file diff summary, checkpoint id, commit sha, cost delta, gate result, fallback, user interruption, and phase decision.
+- Add `bin/factory-trajectory.sh show|summarize|export-eval|replay-plan`.
+- Keep raw logs, but treat the trajectory as the machine-readable release artifact.
+
+#### 2. Agent evaluation harness before prompt/recipe changes ship
+
+**Source:** [Inspect](https://inspect.aisi.org.uk/), [OpenAI Evals](https://github.com/openai/evals), [promptfoo CI/CD docs](https://www.promptfoo.dev/docs/integrations/ci-cd/)
+**Finding:** Inspect supports coding, agentic, tool-calling, multi-agent, and sandboxed evaluations, including external agents such as Claude Code, Codex CLI, and Gemini CLI. OpenAI Evals provides a registry/custom-eval pattern for private workflow-specific evals. promptfoo supports CI quality gates for prompts and red-team scans.
+**Why it matters:** The factory modifies its own prompts, recipes, and directives. Today a prompt change is mostly validated by syntax and smoke tests; it needs behavioral regression tests that prove an updated recipe still performs the intended loop.
+**Implementation:**
+- Add `tests/agent-evals/` with small synthetic repos: broken Python CLI, stale UI app, vulnerable dependency app, malformed ROADMAP repo, dirty worktree repo.
+- Add `just eval-agent` to run a local low-cost harness that checks final artifacts: commits made, tests run, ROADMAP updated, secret scan invoked, rollback on injected failure.
+- Add `just eval-agent-nightly` for expensive multi-provider evaluation.
+- Export factory trajectories into eval records so regressions can be inspected after CI.
+
+#### 3. Coding-agent red-team suite as a release gate
+
+**Source:** [promptfoo red-team coding-agent plugins](https://www.promptfoo.dev/docs/red-team/configuration/)
+**Finding:** promptfoo now ships coding-agent red-team plugins covering repository prompt injection, terminal-output injection, secret handling, sandbox boundaries, network egress, procfs credentials, delayed CI exfiltration, generated vulnerabilities, automation poisoning, steganographic exfiltration, and verifier sabotage.
+**Why it matters:** octopus-factory is specifically a coding-agent orchestrator. Its highest-risk failures are not normal unit-test regressions; they are malicious repo instructions, poisoned terminal output, tool sabotage, secret exfiltration, and CI changes that leak data after the run.
+**Implementation:**
+- Add `tests/redteam/promptfooconfig.yaml` with `coding-agent:core` for PRs and `coding-agent:all` for nightly/manual runs.
+- Add a new Q-phase gate: "agent safety red-team clean or explicitly waived."
+- Teach `factory-doctor.sh` to report whether promptfoo red-team support is installed.
+- Store red-team HTML/JSON reports under `.factory/runs/<run_id>/redteam/`.
+
+### Tier 1 — make execution portable, secure, and CI-grade
+
+#### 4. Containerized verification path for Windows/macOS/Linux parity
+
+**Source:** [Dagger CI workflow docs](https://docs.dagger.io/getting-started/quickstarts/ci/) and [Dev Container spec](https://github.com/devcontainers/spec)
+**Finding:** Dagger turns CI workflows into portable containerized functions and recommends `dagger check` as a local/CI quality gate. Dev Containers standardize a complete development environment for local coding and CI/test use.
+**Why it matters:** The repo is Windows-aware, but the current local verification path can break when `bash`, `bats`, `python3`, or `cygpath` resolve to missing WSL/MSYS components. A portable verification lane should not depend on the user's shell shape.
+**Implementation:**
+- Add optional `.dagger/` module with `check`, `test-bats`, `preset-verify`, `lint-directives`, and `prompt-builder-smoke` functions.
+- Add `.devcontainer/devcontainer.json` for the repo's known-good toolchain: bash, Python 3.10+, jq, bats, shellcheck, just, git-filter-repo, gitleaks, osv-scanner.
+- Add `just verify-native` for current-host checks and `just verify-container` for hermetic checks.
+- Update `factory-doctor.sh` to recommend the containerized path when native Unix tooling is absent.
+
+#### 5. CI supply-chain posture gate
+
+**Source:** [OpenSSF Scorecard](https://github.com/ossf/scorecard) and [StepSecurity Harden-Runner](https://docs.stepsecurity.io/harden-runner)
+**Finding:** Scorecard produces security-health checks and scores for open-source repos. Harden-Runner can audit or block network egress and monitor runtime activity in GitHub Actions.
+**Why it matters:** The factory already scans target repos for secrets/dependencies, but its own CI and the target repo's CI can still become the attack path. A coding agent that edits workflows needs a workflow-level security posture check, not only source-level scans.
+**Implementation:**
+- Add `.github/workflows/scorecard.yml` using OpenSSF Scorecard with SARIF/code-scanning output.
+- Add Harden-Runner in `audit` mode to CI first, then promote select jobs to `block` mode once the outbound allowlist is known.
+- Add factory guidance: if a target repo has GitHub Actions, Q-phase inspects workflow permissions, pinned actions, Scorecard readiness, and unexpected outbound network needs.
+- Add ROADMAP/release gate: no new release until workflow permissions are least-privilege and generated CI changes are reviewed.
+
+#### 6. Toolchain manifest and self-healing doctor
+
+**Source:** [mise dev tools docs](https://mise.jdx.dev/dev-tools/) and [mise task configuration](https://mise.jdx.dev/tasks/task-configuration.html)
+**Finding:** mise can manage development tools, configure PATH/env, run tasks, and auto-install missing tools for a repo-local workflow.
+**Why it matters:** `factory-doctor.sh` detects missing tools, but it does not yet provide a single machine-readable manifest that can bootstrap a developer from zero to verified. This is especially important on Windows where `bash`/`python3` can resolve to unusable shims.
+**Implementation:**
+- Add `mise.toml` with pinned tool requirements for Python, jq, shellcheck, bats, just, gitleaks, osv-scanner, syft, cosign, git-filter-repo.
+- Add `factory-doctor.sh --fix-hints` output that prints exact install commands per OS and detects bad shims before invoking them.
+- Prefer explicit executable discovery over assuming `python3` or `bash` means usable runtime.
+
+### Tier 2 — improve orchestration semantics without a rewrite
+
+#### 7. Explicit phase graph with idempotent side effects
+
+**Source:** [LangGraph durable execution](https://docs.langchain.com/oss/python/langgraph/durable-execution), [Microsoft Agent Framework overview](https://learn.microsoft.com/en-us/agent-framework/overview/), [CrewAI docs](https://docs.crewai.com/)
+**Finding:** LangGraph emphasizes durable execution, pause/resume, and idempotent operations. Microsoft Agent Framework combines agent abstractions with session state, middleware, telemetry, and graph workflows. CrewAI separates autonomous crews from structured flows with state, guardrails, callbacks, and human-in-the-loop triggers.
+**Why it matters:** octopus-factory should keep the bash-first implementation, but its phase behavior should be explicit enough to inspect, resume, replay, and test. Today the recipe is the source of truth; a machine-readable graph would make the runtime safer and easier to evolve.
+**Implementation:**
+- Add `config/workflows/factory.graph.json` describing phase nodes, prerequisites, retry policy, idempotency key, side effects, rollback handler, and required artifacts.
+- Add `bin/factory-graph.sh validate|next|mark|explain` so scripts and docs share one workflow model.
+- Make phase commands idempotent by recording operation ids before side effects: branch creation, commit, push, tag, release, issue creation.
+- Use graph interrupts for human approval gates: destructive history rewrite, force-push, release publishing, dependency upgrades with major-version drift.
+
+#### 8. Context pack generator and repository map
+
+**Source:** [Continue context providers](https://docs.continue.dev/customize/custom-providers) and [Model Context Protocol server concepts](https://modelcontextprotocol.io/docs/learn/server-concepts)
+**Finding:** Continue exposes structured context providers for codebase snippets, folders, search, URL/docs, tree, terminal, problems, and repository maps. MCP servers expose tools, resources, and prompts as reusable context interfaces.
+**Why it matters:** Factory prompts currently rely on the agent to rediscover repo shape every run. A deterministic context pack would reduce wasted tokens, make L1 research stronger, and make cross-provider handoffs less lossy.
+**Implementation:**
+- Add `bin/context-pack.sh <repo>` to produce `.factory/context/pack.md` and `.factory/context/repo-map.json`.
+- Include: stack detection, top-level tree, dependency manifests, test commands, build scripts, public entry points, UI files, docs, recent ROADMAP/CHANGELOG, last 20 commits, and known risk hotspots.
+- Add optional MCP export later, but keep the first version local-file based and allowlisted.
+- Teach prompt-builder to include a "context pack required" toggle for high-risk runs.
+
+#### 9. Guardrails and handoff contracts as data
+
+**Source:** [OpenAI Agents SDK guardrails](https://openai.github.io/openai-agents-python/guardrails/), [OpenAI Agents SDK handoffs](https://openai.github.io/openai-agents-python/handoffs/), [AutoGen multi-agent conversation docs](https://microsoft.github.io/autogen/0.2/docs/Use-Cases/agent_chat/)
+**Finding:** Modern agent frameworks make handoffs, guardrails, and conversable agent boundaries explicit. AutoGen distinguishes static and dynamic conversations; OpenAI Agents SDK documents separate input/output/tool guardrail behavior and handoff semantics.
+**Why it matters:** octopus-factory already has roles and directives, but handoff contracts are mostly prose. Role-to-role transitions should have explicit inputs, output schemas, forbidden side effects, and failure codes.
+**Implementation:**
+- Add `config/roles/*.json` for implementer, critic, defender, security, UX, release, and researcher contracts.
+- Define per-role allowed tools, required artifacts, output schema, escalation triggers, and no-go zones.
+- Add `bin/validate-role-output.py` to enforce JSON/YAML contracts for machine-readable role outputs.
+- Use contracts to improve fallback: if one provider fails mid-role, the next provider receives the same structured task and required output schema.
+
+### Tier 3 — later differentiators
+
+#### 10. Public benchmark board for factory capability
+
+**Source:** [OpenAI Evals](https://github.com/openai/evals), [Inspect](https://inspect.aisi.org.uk/), [SWE-agent trajectories](https://swe-agent.com/latest/reference/agent/)
+**Finding:** The serious agent projects expose repeatable evals and artifacts, not just demos. A benchmark board would make octopus-factory's claims falsifiable.
+**Implementation:**
+- Publish a small suite of fixture repos and expected outcomes.
+- Track pass/fail, cost, wall-clock time, commits, tests run, rollback events, and human-intervention count per preset.
+- Add README badges for latest benchmark pass, red-team pass, and Scorecard score.
+
+#### 11. Optional MCP interface, but only after local security policy exists
+
+**Source:** [MCP server concepts](https://modelcontextprotocol.io/docs/learn/server-concepts)
+**Finding:** MCP can expose prompts, resources, and tools in a standard way. For octopus-factory, that could make recipes/directives discoverable to external IDEs and agents.
+**Why not now:** MCP expands the tool trust boundary. Ship context packs, allowlists, red-team tests, and role contracts first.
+**Implementation later:**
+- `octopus-factory-mcp` exposes read-only recipes/directives/prompts/resources first.
+- Write-capable tools require explicit allowlist and human approval.
+- MCP tool calls are logged into the same trajectory ledger as native commands.
+
+### Frameworks surveyed but not worth adopting wholesale
+
+- **LangGraph / Microsoft Agent Framework / CrewAI / AutoGen:** use their concepts for graphs, state, guardrails, and role contracts; do not replace the bash-first runtime unless the workflow graph outgrows shell scripts.
+- **Dagger:** use as an optional hermetic verification path; do not require containers for basic usage.
+- **MCP:** useful interoperability layer later; too much trust-boundary surface for v0.7 unless paired with allowlists and red-team gates.
+- **[DeepEval](https://deepeval.com/):** strong LLM unit-test ecosystem, but promptfoo + Inspect + OpenAI Evals cover this repo's immediate needs with less overlap.
+
+### What this research says the next release should be
+
+**Recommended v0.7 theme:** "measurable factory runs."
+
+Ship these first:
+1. Trajectory ledger.
+2. Native agent-eval fixture harness.
+3. promptfoo coding-agent red-team gate.
+4. Containerized verification fallback for Windows/macOS/Linux parity.
+5. Scorecard + Harden-Runner CI posture audit.
+
+Those five items compound: the factory becomes replayable, testable, security-audited, and portable before adding more autonomous power.
+
+---
+
 ## v0.6.0 — shipped 2026-04-25
 
 ### Overnight execution mode + infrastructure consolidation
