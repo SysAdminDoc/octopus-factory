@@ -1,6 +1,14 @@
 #!/usr/bin/env bats
 # Directive + recipe frontmatter validation. Wraps bin/lint-directives.py
 # so the existing test runner covers it.
+#
+# Note: the linter writes "✓ file" lines to stdout and "✗ file" + error
+# messages to stderr. We use `run --separate-stderr` so the assertions can
+# target each stream explicitly. Platforms differ on whether `run` (without
+# the flag) auto-merges them — Windows kept them separate while Linux+macOS
+# happened to merge — so this is also a portability fix.
+
+bats_require_minimum_version 1.5.0
 
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
@@ -11,9 +19,10 @@ setup() {
 }
 
 @test "lint-directives: every committed directive + recipe passes" {
-    run python3 "$LINT"
+    run --separate-stderr python3 "$LINT"
     [ "$status" -eq 0 ] || {
-        echo "$output" >&2
+        echo "stdout:" >&2; echo "$output" >&2
+        echo "stderr:" >&2; echo "$stderr" >&2
         return 1
     }
 }
@@ -29,9 +38,9 @@ setup() {
     tmp="$(mktemp -d)"
     mkdir -p "$tmp/directives"
     printf 'no fence here\n' > "$tmp/directives/bad.md"
-    run python3 "$LINT" "$tmp/directives"
+    run --separate-stderr python3 "$LINT" "$tmp/directives"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"must begin with"* ]]
+    [[ "$stderr" == *"must begin with"* ]]
     rm -rf "$tmp"
 }
 
@@ -47,9 +56,9 @@ triggers: [a]
 agents: [b]
 ---
 EOF
-    run python3 "$LINT" "$tmp/directives"
+    run --separate-stderr python3 "$LINT" "$tmp/directives"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"missing required field 'type'"* ]]
+    [[ "$stderr" == *"missing required field 'type'"* ]]
     rm -rf "$tmp"
 }
 
@@ -66,9 +75,9 @@ triggers: [a]
 agents: [b]
 ---
 EOF
-    run python3 "$LINT" "$tmp/directives"
+    run --separate-stderr python3 "$LINT" "$tmp/directives"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"must be one of"* ]]
+    [[ "$stderr" == *"must be one of"* ]]
     rm -rf "$tmp"
 }
 
@@ -85,9 +94,9 @@ triggers: []
 agents: [b]
 ---
 EOF
-    run python3 "$LINT" "$tmp/directives"
+    run --separate-stderr python3 "$LINT" "$tmp/directives"
     [ "$status" -eq 1 ]
-    [[ "$output" == *"must be a non-empty list"* ]]
+    [[ "$stderr" == *"must be a non-empty list"* ]]
     rm -rf "$tmp"
 }
 
@@ -102,7 +111,11 @@ description: recipes only need name/description/type
 type: reference
 ---
 EOF
-    run python3 "$LINT" "$tmp/recipes"
-    [ "$status" -eq 0 ]
+    run --separate-stderr python3 "$LINT" "$tmp/recipes"
+    [ "$status" -eq 0 ] || {
+        echo "stdout:" >&2; echo "$output" >&2
+        echo "stderr:" >&2; echo "$stderr" >&2
+        return 1
+    }
     rm -rf "$tmp"
 }
