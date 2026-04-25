@@ -67,6 +67,19 @@ QWidget#content_panel {{
 
 QWidget#form_row {{
     background-color: transparent;
+    border-left: 2px solid transparent;
+    border-radius: 6px;
+    padding-left: 6px;
+}}
+
+QWidget#form_row[fieldState="required"] {{
+    background-color: rgba(250, 179, 135, 0.045);
+    border-left-color: rgba(250, 179, 135, 0.58);
+}}
+
+QWidget#form_row[fieldState="warning"] {{
+    background-color: rgba(249, 226, 175, 0.04);
+    border-left-color: rgba(249, 226, 175, 0.54);
 }}
 
 QGroupBox {{
@@ -130,6 +143,13 @@ QLabel#app_subtitle, QLabel#nav_footer {{
     line-height: 140%;
 }}
 
+QLabel#nav_count {{
+    color: {OVERLAY_2};
+    font-size: 8.5pt;
+    font-weight: 700;
+    padding: 0 2px 2px 2px;
+}}
+
 QLabel#empty_state {{
     background-color: rgba(49, 50, 68, 0.58);
     border: 1px dashed {SURFACE_1};
@@ -144,6 +164,30 @@ QLabel#field_label {{
     font-size: 9.5pt;
     font-weight: 600;
     padding-top: 0;
+}}
+
+QLabel#field_label[fieldState="required"] {{
+    color: {PEACH};
+}}
+
+QLabel#field_label[fieldState="warning"] {{
+    color: {YELLOW};
+}}
+
+QLabel#field_diagnostic {{
+    background-color: transparent;
+    color: {OVERLAY_2};
+    font-size: 8.5pt;
+    font-weight: 600;
+    padding: 0 0 2px 0;
+}}
+
+QLabel#field_diagnostic[fieldState="required"] {{
+    color: {PEACH};
+}}
+
+QLabel#field_diagnostic[fieldState="warning"] {{
+    color: {YELLOW};
 }}
 
 QLabel#inline_notice {{
@@ -218,6 +262,18 @@ QComboBox:hover, QSpinBox:hover {{
 QLineEdit:disabled, QPlainTextEdit:disabled, QComboBox:disabled, QSpinBox:disabled {{
     background-color: {MANTLE};
     color: {OVERLAY_0};
+}}
+
+QLineEdit[fieldState="required"], QPlainTextEdit[fieldState="required"],
+QComboBox[fieldState="required"], QSpinBox[fieldState="required"] {{
+    border-color: rgba(250, 179, 135, 0.72);
+    background-color: rgba(250, 179, 135, 0.06);
+}}
+
+QLineEdit[fieldState="warning"], QPlainTextEdit[fieldState="warning"],
+QComboBox[fieldState="warning"], QSpinBox[fieldState="warning"] {{
+    border-color: rgba(249, 226, 175, 0.68);
+    background-color: rgba(249, 226, 175, 0.055);
 }}
 
 QPlainTextEdit#preview {{
@@ -326,6 +382,10 @@ QCheckBox#option_checkbox:hover {{
     color: {TEXT};
 }}
 
+QCheckBox[fieldState="warning"] {{
+    color: {YELLOW};
+}}
+
 QCheckBox#compact_checkbox {{
     color: {SUBTEXT_0};
     font-size: 9pt;
@@ -365,27 +425,20 @@ QListWidget#template_list {{
     background-color: {MANTLE};
     border: 1px solid transparent;
     border-radius: 8px;
-    padding: 2px;
+    padding: 4px 2px;
     outline: 0;
 }}
 
 QListWidget#template_list::item {{
-    padding: 8px 10px;
-    border-radius: 8px;
-    color: {SUBTEXT_1};
-    margin: 2px 0;
+    color: transparent;
 }}
 
 QListWidget#template_list::item:hover {{
-    background-color: {SURFACE_0};
-    color: {TEXT};
+    color: transparent;
 }}
 
 QListWidget#template_list::item:selected {{
-    background-color: {SURFACE_0};
-    border: 1px solid {SURFACE_2};
-    color: {TEXT};
-    font-weight: 650;
+    color: transparent;
 }}
 
 QScrollArea {{

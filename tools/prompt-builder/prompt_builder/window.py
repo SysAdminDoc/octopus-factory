@@ -13,9 +13,18 @@ import os
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtCore import Qt, QSize, QSettings, QTimer
-from PyQt6.QtGui import QGuiApplication, QFont, QAction, QKeySequence
+from PyQt6.QtCore import Qt, QSize, QSettings, QTimer, QRect
+from PyQt6.QtGui import (
+    QGuiApplication,
+    QFont,
+    QAction,
+    QKeySequence,
+    QColor,
+    QPainter,
+    QPen,
+)
 from PyQt6.QtWidgets import (
+    QAbstractItemView,
     QApplication,
     QCheckBox,
     QComboBox,
@@ -30,6 +39,8 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSpinBox,
+    QStyledItemDelegate,
+    QStyle,
     QSplitter,
     QStatusBar,
     QVBoxLayout,
@@ -37,6 +48,17 @@ from PyQt6.QtWidgets import (
 )
 
 from .templates import TEMPLATES, Template, Field, list_templates
+from .theme import (
+    CRUST,
+    MANTLE,
+    SUBTEXT_0,
+    SUBTEXT_1,
+    SURFACE_0,
+    SURFACE_1,
+    SURFACE_2,
+    TEAL,
+    TEXT,
+)
 
 
 class PathEdit(QWidget):
@@ -95,6 +117,86 @@ class PathsEdit(QPlainTextEdit):
         self.setMaximumHeight(120)
 
 
+class TemplateListDelegate(QStyledItemDelegate):
+    """Paint prompt templates as compact, structured navigation cards."""
+
+    def sizeHint(self, option, index) -> QSize:
+        return QSize(option.rect.width(), 70)
+
+    def paint(self, painter: QPainter, option, index):
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
+        rect = option.rect.adjusted(4, 3, -4, -3)
+        bg = QColor(SURFACE_0 if selected or hovered else MANTLE)
+        border = QColor(SURFACE_2 if selected else SURFACE_1 if hovered else MANTLE)
+
+        painter.setPen(QPen(border, 1))
+        painter.setBrush(bg)
+        painter.drawRoundedRect(rect, 9, 9)
+
+        label = str(index.data(Qt.ItemDataRole.UserRole + 3) or "")
+        group = str(index.data(Qt.ItemDataRole.UserRole + 1) or "")
+        description = str(index.data(Qt.ItemDataRole.UserRole + 4) or "")
+
+        title_font = QFont(option.font)
+        title_font.setPointSize(10)
+        title_font.setWeight(QFont.Weight.DemiBold if selected else QFont.Weight.Medium)
+        meta_font = QFont(option.font)
+        meta_font.setPointSize(8)
+        chip_font = QFont(option.font)
+        chip_font.setPointSize(7)
+        chip_font.setWeight(QFont.Weight.Bold)
+
+        x = rect.left() + 10
+        y = rect.top() + 8
+        w = rect.width() - 20
+
+        painter.setFont(chip_font)
+        chip_metrics = painter.fontMetrics()
+        chip_w = chip_metrics.horizontalAdvance(group.upper()) + 18
+        chip_rect = QRect(rect.right() - chip_w - 9, y - 1, chip_w, 18)
+        painter.setPen(QPen(QColor(TEAL if selected else SURFACE_2), 1))
+        painter.setBrush(QColor(CRUST if selected else SURFACE_0))
+        painter.drawRoundedRect(chip_rect, 9, 9)
+        painter.setPen(QColor(TEAL if selected else SUBTEXT_1))
+        painter.drawText(
+            chip_rect,
+            Qt.AlignmentFlag.AlignCenter,
+            group.upper(),
+        )
+
+        title_rect = QRect(x, y, max(40, w - chip_w - 18), 20)
+        painter.setFont(title_font)
+        painter.setPen(QColor(TEXT))
+        painter.drawText(
+            title_rect,
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            painter.fontMetrics().elidedText(
+                label,
+                Qt.TextElideMode.ElideRight,
+                title_rect.width(),
+            ),
+        )
+
+        desc_rect = QRect(x, y + 27, w, 30)
+        painter.setFont(meta_font)
+        painter.setPen(QColor(SUBTEXT_0 if selected else SUBTEXT_1))
+        painter.drawText(
+            desc_rect,
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop,
+            painter.fontMetrics().elidedText(
+                description,
+                Qt.TextElideMode.ElideRight,
+                desc_rect.width(),
+            ),
+        )
+
+        painter.restore()
+
+
 def _template_group(key: str) -> str:
     """Return a compact category label for navigation grouping."""
     if key in {"factory_loop", "overnight", "single_task"}:
@@ -115,6 +217,9 @@ class FormBuilder:
         self.template = template
         self._on_change = on_change
         self._widgets: dict[str, QWidget] = {}
+        self._rows: dict[str, QWidget] = {}
+        self._labels: dict[str, QLabel] = {}
+        self._diagnostics: dict[str, QLabel] = {}
         self.container = QWidget()
         self.layout = QVBoxLayout(self.container)
         self.layout.setContentsMargins(4, 10, 8, 12)
@@ -125,6 +230,7 @@ class FormBuilder:
         for f in self.template.fields:
             row = QWidget()
             row.setObjectName("form_row")
+            self._rows[f.key] = row
             row_layout = QVBoxLayout(row)
             row_layout.setContentsMargins(0, 0, 0, 0)
             row_layout.setSpacing(5)
@@ -139,6 +245,7 @@ class FormBuilder:
                 label = QLabel(f.label)
                 label.setObjectName("field_label")
                 label.setWordWrap(True)
+                self._labels[f.key] = label
                 row_layout.addWidget(label)
             row_layout.addWidget(widget)
             if f.help:
@@ -149,6 +256,12 @@ class FormBuilder:
                 )
                 help_lbl.setWordWrap(True)
                 row_layout.addWidget(help_lbl)
+            diagnostic = QLabel("")
+            diagnostic.setObjectName("field_diagnostic")
+            diagnostic.setWordWrap(True)
+            diagnostic.hide()
+            self._diagnostics[f.key] = diagnostic
+            row_layout.addWidget(diagnostic)
             self.layout.addWidget(row)
         self.layout.addStretch(1)
 
@@ -287,6 +400,31 @@ class FormBuilder:
                 w.setChecked(bool(value))
                 w.blockSignals(False)
 
+    def apply_field_states(self, states: dict[str, tuple[str, str]]):
+        for field in self.template.fields:
+            state, message = states.get(field.key, ("", ""))
+            targets = [self._rows.get(field.key), self._labels.get(field.key)]
+            widget = self._widgets.get(field.key)
+            targets.append(widget)
+            if isinstance(widget, PathEdit):
+                targets.extend([widget.edit, widget.button])
+            diagnostic = self._diagnostics.get(field.key)
+            if diagnostic:
+                diagnostic.setText(message)
+                diagnostic.setVisible(bool(message))
+                diagnostic.setProperty("fieldState", state)
+                targets.append(diagnostic)
+
+            for target in targets:
+                if target is None:
+                    continue
+                target.setProperty("fieldState", state)
+                target.style().unpolish(target)
+                target.style().polish(target)
+
+            if widget:
+                widget.setAccessibleDescription(message)
+
 
 class PromptBuilderWindow(QMainWindow):
 
@@ -303,6 +441,7 @@ class PromptBuilderWindow(QMainWindow):
         self._pending_form_changes = False
         self._empty_required_fields: list[str] = []
         self._form_warnings: list[str] = []
+        self._field_diagnostics: dict[str, tuple[str, str]] = {}
         self._settings = QSettings("octopus-factory", "Prompt Builder")
         self._copy_reset_timer = QTimer(self)
         self._copy_reset_timer.setSingleShot(True)
@@ -327,6 +466,10 @@ class PromptBuilderWindow(QMainWindow):
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.textChanged.connect(self._filter_templates)
 
+        templates = list_templates()
+        self.nav_count_label = QLabel(f"{len(templates)} prompt types")
+        self.nav_count_label.setObjectName("nav_count")
+
         self.no_results_label = QLabel("No prompt types match this search.")
         self.no_results_label.setObjectName("empty_state")
         self.no_results_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -337,17 +480,27 @@ class PromptBuilderWindow(QMainWindow):
         self.template_list.setObjectName("template_list")
         self.template_list.setMinimumWidth(220)
         self.template_list.setMaximumWidth(310)
-        for tpl in list_templates():
+        self.template_list.setMouseTracking(True)
+        self.template_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.template_list.setVerticalScrollMode(
+            QAbstractItemView.ScrollMode.ScrollPerPixel
+        )
+        self.template_list.setItemDelegate(TemplateListDelegate(self.template_list))
+        for tpl in templates:
             group = _template_group(tpl.key)
-            item = QListWidgetItem(f"{tpl.label}\n{group} · {tpl.description}")
+            item = QListWidgetItem(tpl.label)
             item.setData(Qt.ItemDataRole.UserRole, tpl.key)
             item.setData(Qt.ItemDataRole.UserRole + 1, group)
             item.setData(
                 Qt.ItemDataRole.UserRole + 2,
                 f"{tpl.label} {group} {tpl.description}".lower(),
             )
+            item.setData(Qt.ItemDataRole.UserRole + 3, tpl.label)
+            item.setData(Qt.ItemDataRole.UserRole + 4, tpl.description)
             item.setToolTip(tpl.description)
-            item.setSizeHint(QSize(220, 58))
+            item.setSizeHint(QSize(220, 70))
             self.template_list.addItem(item)
         self.template_list.currentItemChanged.connect(self._on_template_selected)
 
@@ -366,6 +519,7 @@ class PromptBuilderWindow(QMainWindow):
         nav_layout.addWidget(app_title)
         nav_layout.addWidget(app_subtitle)
         nav_layout.addWidget(self.search_edit)
+        nav_layout.addWidget(self.nav_count_label)
         nav_layout.addWidget(self.no_results_label)
         nav_layout.addWidget(self.template_list, 1)
         nav_layout.addWidget(nav_footer)
@@ -581,9 +735,14 @@ class PromptBuilderWindow(QMainWindow):
         )
         self.no_results_label.setVisible(visible_count == 0)
         if needle:
+            label = "prompt type" if visible_count == 1 else "prompt types"
+            self.nav_count_label.setText(f"{visible_count} {label} found")
             self.statusBar().showMessage(
                 f"{visible_count} prompt types match '{query}'.", 2500
             )
+        else:
+            label = "prompt type" if visible_count == 1 else "prompt types"
+            self.nav_count_label.setText(f"{visible_count} {label}")
 
     def _on_template_selected(self, current: QListWidgetItem, previous):
         if not current:
@@ -674,6 +833,13 @@ class PromptBuilderWindow(QMainWindow):
     def _refresh_form_diagnostics(self, tpl: Template):
         self._empty_required_fields = self._required_empty_fields(tpl)
         self._form_warnings = self._form_warnings_for(tpl)
+        self._field_diagnostics = self._field_diagnostics_for(tpl)
+        if self._current_form:
+            self._current_form.apply_field_states(self._field_diagnostics)
+
+    def _is_required_field(self, field: Field) -> bool:
+        required_path_keys = {"repo", "repos", "pdf_path", "source_pdf"}
+        return field.key in required_path_keys or field.key == "task_id"
 
     def _required_empty_fields(self, tpl: Template) -> list[str]:
         if not self._current_form:
@@ -681,9 +847,7 @@ class PromptBuilderWindow(QMainWindow):
         values = self._current_form.values()
         missing = []
         for field in tpl.fields:
-            is_required_path = field.kind in {"path", "paths"} and not field.default
-            is_required_text = field.key in {"task_id"}
-            if is_required_path or is_required_text:
+            if self._is_required_field(field):
                 if not str(values.get(field.key, "")).strip():
                     missing.append(field.label)
         return missing
@@ -733,6 +897,70 @@ class PromptBuilderWindow(QMainWindow):
             warnings.append("AI Scrub apply/push rewrites history; dry-run first")
 
         return warnings[:3]
+
+    def _field_diagnostics_for(self, tpl: Template) -> dict[str, tuple[str, str]]:
+        if not self._current_form:
+            return {}
+
+        values = self._current_form.values()
+        diagnostics: dict[str, tuple[str, str]] = {}
+        directory_keys = {"repo", "repos", "auto_discover"}
+        pdf_keys = {"pdf_path", "source_pdf"}
+
+        for field in tpl.fields:
+            raw_value = str(values.get(field.key, "")).strip()
+
+            if self._is_required_field(field) and not raw_value:
+                if field.kind == "paths":
+                    message = "Add at least one project directory before using this prompt."
+                elif field.kind == "path":
+                    message = "Choose a path or keep the placeholder intentionally."
+                else:
+                    message = "Required before this prompt is ready."
+                diagnostics[field.key] = ("required", message)
+                continue
+
+            if not raw_value:
+                continue
+
+            if field.key in directory_keys:
+                paths = (
+                    [line.strip() for line in raw_value.splitlines() if line.strip()]
+                    if field.kind == "paths"
+                    else [raw_value]
+                )
+                path_messages = []
+                for item in paths:
+                    path = Path(item).expanduser()
+                    if not path.exists():
+                        path_messages.append("path not found")
+                    elif not path.is_dir():
+                        path_messages.append("not a directory")
+                    elif (
+                        field.key in {"repo", "repos"}
+                        and not (path / ".git").exists()
+                    ):
+                        path_messages.append("no .git metadata")
+                if path_messages:
+                    unique = ", ".join(dict.fromkeys(path_messages))
+                    diagnostics[field.key] = ("warning", f"Review this value: {unique}.")
+
+            if field.key in pdf_keys:
+                path = Path(raw_value).expanduser()
+                if not path.exists():
+                    diagnostics[field.key] = ("warning", "File not found.")
+                elif not path.is_file():
+                    diagnostics[field.key] = ("warning", "Expected a file, not a directory.")
+                elif path.suffix.lower() != ".pdf":
+                    diagnostics[field.key] = ("warning", "Expected a .pdf file.")
+
+        if tpl.key == "ai_scrub" and values.get("mode") in {"apply", "push"}:
+            diagnostics["mode"] = (
+                "warning",
+                "History rewrite mode. Confirm dry-run output and backups before proceeding.",
+            )
+
+        return diagnostics
 
     # ─── Actions ───
 
