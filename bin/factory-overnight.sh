@@ -236,10 +236,22 @@ EOF
 }
 
 cycles_remaining() {
-    if [[ "$MAX_CYCLES" -eq 0 ]]; then
-        echo "9999"  # effectively unlimited
-    else
+    if [[ "$MAX_CYCLES" -gt 0 ]]; then
         echo "$(( MAX_CYCLES - CYCLES_DONE ))"
+        return
+    fi
+    # MAX_CYCLES=0 (unlimited): estimate from remaining wall-clock so per-cycle
+    # budget math doesn't divide total spend by 9999 and round to $0.00.
+    # Assume each cycle consumes at least SLEEP_SEC + 60s of real work.
+    if [[ "${END_EPOCH:-0}" -gt 0 ]]; then
+        local now=$(date +%s)
+        local est_cycle=$(( SLEEP_SEC + 60 ))
+        local rem=$(( (END_EPOCH - now) / est_cycle ))
+        (( rem < 1 )) && rem=1
+        (( rem > 100 )) && rem=100
+        echo "$rem"
+    else
+        echo "100"  # truly unbounded — cap so budget math stays sane
     fi
 }
 
@@ -417,12 +429,14 @@ EOF
             CLAUDE_ARGS+=(--model "$MODEL_OVERRIDE")
         fi
 
+        # Pipe prompt via stdin: claude CLI 2.1.78+ no longer accepts a trailing
+        # positional prompt after multi-value flags like --add-dir.
         if command -v timeout &>/dev/null; then
-            timeout --signal=TERM "${CYCLE_TIMEOUT_SEC}s" \
-                claude "${CLAUDE_ARGS[@]}" "$CYCLE_PROMPT" \
+            printf '%s' "$CYCLE_PROMPT" | timeout --signal=TERM "${CYCLE_TIMEOUT_SEC}s" \
+                claude "${CLAUDE_ARGS[@]}" \
                 > "$CYCLE_LOG" 2>&1
         else
-            claude "${CLAUDE_ARGS[@]}" "$CYCLE_PROMPT" \
+            printf '%s' "$CYCLE_PROMPT" | claude "${CLAUDE_ARGS[@]}" \
                 > "$CYCLE_LOG" 2>&1
         fi
         CYCLE_RC=$?
