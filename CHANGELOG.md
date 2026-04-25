@@ -6,8 +6,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+### Changed — Overnight wrapper: live visibility + 15 new flags
+**Why:** user feedback on v0.6.0: "When overnight runs, I can't see what it's doing." Cycle output was being written exclusively to `~/.claude-octopus/logs/overnight/<run-id>/cycle-NNN.log` with nothing on the terminal — silent until summary. Fixed alongside a feature batch.
+
+**Live cycle output is now the default.** `claude` invocation pipes through `tee "$CYCLE_LOG"` so output goes to your terminal AND the per-cycle log simultaneously. `PIPESTATUS[0]` preserves claude's exit code (tee always succeeds). Opt out with `--quiet` / `-q` to restore the silent log-only behavior.
+
+**Heartbeat ticker.** While a cycle is running (which can be silent for minutes during long claude thinking turns), a backgrounded loop prints `[heartbeat] cycle 3 | Astra-Deck | running 247s` every 30 seconds to stderr. Configurable with `--heartbeat-sec N` (set to 0 to disable). Cleaned up on cycle exit and on signal.
+
+**ANSI color** on outcome lines and event tags. `advanced=green`, `researched=cyan`, `no-op=yellow`, `STOP/error=red`. Auto-disabled when stdout isn't a TTY; force off with `--no-color`.
+
+**`--show-config`** dumps the effective configuration and exits. Use it before kicking off a long run to confirm the discovered repo set, exclude filters, end time, budget, etc. resolved as intended.
+
+**New flags (15):**
+
+| Flag | Effect |
+|---|---|
+| `--quiet` / `-q` | Suppress live cycle output (log file only) |
+| `--no-color` | Disable ANSI color in console output |
+| `--heartbeat-sec N` | Heartbeat interval (default 30, 0 to disable) |
+| `--start-time HH:MM` | Delayed start; wrapper sleeps until this wall-clock time |
+| `--auto-discover DIR` | Find every git repo (depth=1) under DIR, add to repo list |
+| `--exclude-repo PATTERN` | Skip repos whose path contains PATTERN; repeatable |
+| `--shuffle-repos` | Randomize repo order at startup (Fisher-Yates via `shuf` if present, else `$RANDOM`) |
+| `--healthcheck-url URL` | POST `/start` before each cycle, `/<rc>` after — Healthchecks.io / Better Stack format |
+| `--notify SPEC` | End-of-run notification: `webhook=URL` (POST JSON), `ntfy=TOPIC` (ntfy.sh), or `desktop` (notify-send / osascript / msg.exe). Repeatable. |
+| `--resume RUN_ID` | Rehydrate convergence streaks from a prior `state.json`; skips repos that already converged |
+| `--fail-fast` | Abort the whole session on first non-zero cycle rc (default keeps going) |
+| `--require-clean-tree` | Pre-flight: refuse to start if any repo has uncommitted changes |
+| `--require-remote` | Pre-flight: refuse to start if any repo lacks `origin` remote |
+| `--show-config` | Dump effective config and exit (for verifying flags before long runs) |
+| `--pause` (sentinel) | `touch ~/.factory-overnight.pause` halts the loop between cycles until removed |
+
+**Other improvements:**
+- Better signal handling. Added `cleanup` trap (EXIT) + explicit SIGINT/SIGTERM handlers that kill the in-flight cycle child + heartbeat process and write the summary before exiting. Was previously a single `trap rm EXIT` with no child cleanup.
+- Machine-readable status: `~/.factory-overnight.status.json` mirrors the human `.status` file. Includes streaks per repo so external monitoring can render dashboards.
+- `state.json` per-run contains the same JSON payload, so `--resume` can rehydrate from any historical run dir.
+- Run banner: `━━━ factory-overnight starting ━━━` and `━━━ Cycle N ━━━` separators so the user can scan the terminal without grep.
+- `--auto-discover` skips its own internals: globs `<dir>/*/.git` (depth=2 from base) so nested submodules don't get mistakenly enumerated.
+
 ### Added
-- (track future improvements here)
+- `tests/bats/overnight.bats` — 11 new bats tests covering `--help`, `--show-config`, unknown-flag rejection, missing-repo rejection, non-existent-repo rejection, dry-run cycle, --max-cycles termination, --auto-discover happy path, --exclude-repo filtering, --status when idle, --stop sentinel creation. Auto-skips when local bash <4 (the script requires bash 4+). Total bats suite is now 40 tests across 5 files.
 
 ---
 

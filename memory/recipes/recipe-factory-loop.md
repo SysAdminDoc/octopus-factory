@@ -389,16 +389,41 @@ wrapper. Each cycle is one iteration; the wrapper respawns fresh Claude
 sessions to avoid context fragmentation.
 
 **The wrapper** (`bin/factory-overnight.sh`) handles:
-- Round-robin across multiple repos
-- Wall-clock end time (`--until 06:00`) or duration (`--duration 8h`)
+- Round-robin across multiple repos (or `--no-rotate` for sequential)
+- `--auto-discover DIR` to pick up every git repo under a directory
+- `--exclude-repo PATTERN` (repeatable) to skip matching paths
+- `--shuffle-repos` to randomize order at startup
+- Wall-clock end time (`--until 06:00`), duration (`--duration 8h`), or
+  delayed start (`--start-time 23:00`)
 - Per-cycle hard timeout (default 30 min) so a hung cycle can't block forever
 - Cumulative cost cap (default $50) auto-distributed across remaining cycles
 - Convergence rotation: a repo that returns `cycle_outcome: no-op` for N
   consecutive cycles gets retired from the rotation; when all repos retire,
   the wrapper exits cleanly
-- Sentinel stop file (`~/.factory-overnight.stop`) for graceful interrupt
-- Status file (`~/.factory-overnight.status`) human-readable at any time
+- `--resume RUN_ID` to rehydrate convergence streaks from a prior run's
+  `state.json` (skips repos that already converged)
+- `--fail-fast` to abort on first non-zero cycle (default keeps going)
+- Pre-flight gates: `--require-clean-tree` and `--require-remote`
+- Sentinel files: `~/.factory-overnight.stop` (halt at next cycle boundary),
+  `~/.factory-overnight.pause` (wait between cycles until removed)
+- Status files: `~/.factory-overnight.status` (human) +
+  `~/.factory-overnight.status.json` (machine)
+- `--healthcheck-url URL` to ping per-cycle (Healthchecks.io / Better Stack
+  format — `/start` before, `/<rc>` after)
+- `--notify SPEC` end-of-run notification (`webhook=URL`, `ntfy=TOPIC`, or
+  `desktop`; repeatable)
 - Per-cycle log + end-of-run summary in `~/.claude-octopus/logs/overnight/`
+
+**Live visibility** (default — opt out with `--quiet`):
+- Cycle output streams to your terminal AND to the per-cycle log via `tee`.
+  You see exactly what claude is doing in real time.
+- Heartbeat every 30s (`--heartbeat-sec N`, set to 0 to disable):
+  `[heartbeat] cycle 3 | Astra-Deck | running 247s`. Helps when claude is
+  silent during long thinking turns.
+- ANSI color on outcome lines (advanced=green, researched=cyan, no-op=yellow,
+  STOP/error=red). Auto-disabled on non-TTY; force off with `--no-color`.
+- `--show-config` dumps the resolved configuration before the run starts —
+  use it to confirm flags before kicking off a long session.
 
 **The `--overnight` flag** signals the recipe to run as one cycle:
 1. Forces Large-Repo Mode regardless of scale gate (so the cycle is finite)
@@ -441,27 +466,64 @@ the wrapper from a terminal that survives logout (tmux / screen / PowerShell
 window that won't close). The wrapper writes its own logs — you don't need
 to watch the terminal.
 
-**Invocation example:**
+**Invocation examples:**
 ```bash
-# 8 hours, two repos, $40 total budget, halt at 6am
+# 8 hours, two repos, $40 total budget, halt at 6am, live cycle output (default)
 bash ~/repos/octopus-factory/bin/factory-overnight.sh \
     ~/repos/Astra-Deck \
     ~/repos/NovaCut \
     --until 06:00 \
     --max-spend-total 40
+
+# Auto-discover every repo under ~/repos, skip a few, require clean trees,
+# require origin remote, randomize starting order, schedule for 23:00
+bash ~/repos/octopus-factory/bin/factory-overnight.sh \
+    --auto-discover ~/repos \
+    --exclude-repo Maven \
+    --exclude-repo old-project \
+    --shuffle-repos \
+    --require-clean-tree \
+    --require-remote \
+    --start-time 23:00 --until 06:00 \
+    --max-spend-total 50
+
+# Healthcheck pings + ntfy.sh end-of-run notification, fail fast on first error
+bash ~/repos/octopus-factory/bin/factory-overnight.sh \
+    ~/repos/Astra-Deck \
+    --duration 6h \
+    --healthcheck-url https://hc-ping.com/<uuid> \
+    --notify ntfy=mytopic \
+    --notify desktop \
+    --fail-fast
+
+# Confirm flags before committing to a long run
+bash ~/repos/octopus-factory/bin/factory-overnight.sh \
+    --auto-discover ~/repos --duration 8h --show-config
 ```
 
-**Watching progress without logging in:**
-```bash
-bash ~/repos/octopus-factory/bin/factory-overnight.sh --status
-# or tail the live event log:
-tail -f ~/.claude-octopus/logs/overnight/<run-id>/overnight.log
-```
+**Watching progress:**
+- The terminal you launched from streams cycle output live by default.
+- From a different shell: `bash bin/factory-overnight.sh --status` (text)
+  or `cat ~/.factory-overnight.status.json | jq` (machine).
+- Live event log: `tail -f ~/.claude-octopus/logs/overnight/<run-id>/overnight.log`.
 
 **Halting cleanly mid-run:**
 ```bash
 bash ~/repos/octopus-factory/bin/factory-overnight.sh --stop
-# wrapper will finish the current cycle, then exit
+# wrapper finishes the current cycle, then exits
+```
+
+**Pausing without halting:**
+```bash
+touch ~/.factory-overnight.pause     # wrapper waits between cycles
+rm ~/.factory-overnight.pause        # resume
+```
+
+**Resuming after a stop / restart:**
+```bash
+# Load convergence streaks from a prior run so retired repos stay retired
+bash bin/factory-overnight.sh --auto-discover ~/repos \
+    --resume overnight-20260425T020000Z-12345 --duration 4h
 ```
 
 ### Mode flags
