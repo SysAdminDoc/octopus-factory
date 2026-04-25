@@ -40,10 +40,50 @@ _find_db() {
 
 DB="$(_find_db)"
 
+_require_sqlite() {
+    if ! command -v sqlite3 >/dev/null 2>&1; then
+        echo "state-store: sqlite3 is required but was not found on PATH" >&2
+        return 1
+    fi
+}
+
+_sql_quote() {
+    local value="${1-}"
+    value=${value//\'/\'\'}
+    printf "'%s'" "$value"
+}
+
+_sql_null_or_quote() {
+    local value="${1-}"
+    if [[ -z "$value" ]]; then
+        printf 'NULL'
+    else
+        _sql_quote "$value"
+    fi
+}
+
+_require_non_negative_decimal() {
+    local label="$1"
+    local value="$2"
+    if [[ ! "$value" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+        echo "state-store: ${label} must be a non-negative decimal number" >&2
+        return 1
+    fi
+}
+
+_require_non_negative_integer() {
+    local label="$1"
+    local value="$2"
+    if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+        echo "state-store: ${label} must be a non-negative integer" >&2
+        return 1
+    fi
+}
+
 _ensure_db() {
+    _require_sqlite
     mkdir -p "$(dirname "$DB")"
-    if [[ ! -f "$DB" ]]; then
-        sqlite3 "$DB" <<'SQL'
+    sqlite3 "$DB" <<'SQL'
 CREATE TABLE IF NOT EXISTS checkpoints (
   thread_id             TEXT NOT NULL,           -- factory run_id
   checkpoint_ns         TEXT NOT NULL DEFAULT '',-- phase name (P1/W3/L2/L3/U1/T1/D1/Q3/etc.)
@@ -68,7 +108,6 @@ CREATE TABLE IF NOT EXISTS runs (
   total_cost   REAL DEFAULT 0.0
 );
 SQL
-    fi
 }
 
 cmd_init() {
@@ -80,20 +119,28 @@ cmd_save() {
     local run_id="${1:?usage: save <run_id> <phase> <iter> <json-payload>}"
     local phase="${2:?}"
     local iter="${3:?}"
-    local payload="${4:-{}}"
+    local payload
     local parent="${5:-}"
+    local quoted_parent
+
+    if [[ $# -ge 4 ]]; then
+        payload="$4"
+    else
+        payload="{}"
+    fi
 
     _ensure_db
+    quoted_parent="$(_sql_null_or_quote "$parent")"
     sqlite3 "$DB" <<SQL
 INSERT OR REPLACE INTO runs (run_id, repo_path, status)
-VALUES ('${run_id//\'/\'\'}', '${PWD//\'/\'\'}', 'running');
+VALUES ($(_sql_quote "$run_id"), $(_sql_quote "$PWD"), 'running');
 
 INSERT OR REPLACE INTO checkpoints
   (thread_id, checkpoint_ns, checkpoint_id, parent_checkpoint_id, type, checkpoint)
 VALUES
-  ('${run_id//\'/\'\'}', '${phase//\'/\'\'}', '${iter//\'/\'\'}',
-   $([ -z "$parent" ] && echo NULL || echo "'${parent//\'/\'\'}'"),
-   'json', '${payload//\'/\'\'}');
+  ($(_sql_quote "$run_id"), $(_sql_quote "$phase"), $(_sql_quote "$iter"),
+   ${quoted_parent},
+   'json', $(_sql_quote "$payload"));
 SQL
     echo "saved: ${run_id}/${phase}/${iter}"
 }
@@ -105,9 +152,9 @@ cmd_load() {
 
     _ensure_db
     if [[ -n "$iter" ]]; then
-        sqlite3 "$DB" "SELECT checkpoint FROM checkpoints WHERE thread_id='${run_id//\'/\'\'}' AND checkpoint_ns='${phase//\'/\'\'}' AND checkpoint_id='${iter//\'/\'\'}';"
+        sqlite3 "$DB" "SELECT checkpoint FROM checkpoints WHERE thread_id=$(_sql_quote "$run_id") AND checkpoint_ns=$(_sql_quote "$phase") AND checkpoint_id=$(_sql_quote "$iter");"
     else
-        sqlite3 "$DB" "SELECT checkpoint FROM checkpoints WHERE thread_id='${run_id//\'/\'\'}' AND checkpoint_ns='${phase//\'/\'\'}' ORDER BY created_at DESC LIMIT 1;"
+        sqlite3 "$DB" "SELECT checkpoint FROM checkpoints WHERE thread_id=$(_sql_quote "$run_id") AND checkpoint_ns=$(_sql_quote "$phase") ORDER BY created_at DESC LIMIT 1;"
     fi
 }
 
@@ -120,7 +167,7 @@ cmd_list() {
 SELECT checkpoint_ns AS phase, checkpoint_id AS iter,
        datetime(created_at, 'unixepoch') AS at,
        length(checkpoint) AS bytes
-FROM checkpoints WHERE thread_id='${run_id//\'/\'\'}'
+FROM checkpoints WHERE thread_id=$(_sql_quote "$run_id")
 ORDER BY created_at;
 SQL
     else
@@ -141,19 +188,21 @@ cmd_resume() {
     local run_id="${1:?usage: resume <run_id>}"
     _ensure_db
     # Return the last phase that completed, so caller knows where to pick up
-    sqlite3 "$DB" "SELECT checkpoint_ns || '/' || checkpoint_id FROM checkpoints WHERE thread_id='${run_id//\'/\'\'}' ORDER BY created_at DESC LIMIT 1;"
+    sqlite3 "$DB" "SELECT checkpoint_ns || '/' || checkpoint_id FROM checkpoints WHERE thread_id=$(_sql_quote "$run_id") ORDER BY created_at DESC LIMIT 1;"
 }
 
 cmd_complete() {
     local run_id="${1:?usage: complete <run_id> [cost]}"
     local cost="${2:-0}"
+    _require_non_negative_decimal "cost" "$cost"
     _ensure_db
-    sqlite3 "$DB" "UPDATE runs SET status='completed', ended_at=strftime('%s','now'), total_cost=${cost} WHERE run_id='${run_id//\'/\'\'}';"
+    sqlite3 "$DB" "UPDATE runs SET status='completed', ended_at=strftime('%s','now'), total_cost=${cost} WHERE run_id=$(_sql_quote "$run_id");"
     echo "completed: ${run_id}"
 }
 
 cmd_prune() {
     local days="${1:-30}"
+    _require_non_negative_integer "days" "$days"
     _ensure_db
     local cutoff=$(( $(date +%s) - days * 86400 ))
     local deleted
