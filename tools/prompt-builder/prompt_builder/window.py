@@ -8,6 +8,7 @@ Layout (left to right):
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -241,6 +242,47 @@ class FormBuilder:
                 out[f.key] = w.isChecked()
         return out
 
+    def set_values(self, values: dict[str, Any]):
+        for f in self.template.fields:
+            if f.key not in values:
+                continue
+
+            w = self._widgets[f.key]
+            value = values[f.key]
+            if isinstance(w, PathEdit):
+                w.edit.blockSignals(True)
+                w.setText(str(value))
+                w.edit.blockSignals(False)
+            elif isinstance(w, PathsEdit):
+                w.blockSignals(True)
+                w.setPlainText(str(value))
+                w.blockSignals(False)
+            elif isinstance(w, QPlainTextEdit):
+                w.blockSignals(True)
+                w.setPlainText(str(value))
+                w.blockSignals(False)
+            elif isinstance(w, QLineEdit):
+                w.blockSignals(True)
+                w.setText(str(value))
+                w.blockSignals(False)
+            elif isinstance(w, QSpinBox):
+                w.blockSignals(True)
+                try:
+                    w.setValue(int(value))
+                except (TypeError, ValueError):
+                    pass
+                w.blockSignals(False)
+            elif isinstance(w, QComboBox):
+                w.blockSignals(True)
+                text = str(value)
+                if text in f.choices:
+                    w.setCurrentText(text)
+                w.blockSignals(False)
+            elif isinstance(w, QCheckBox):
+                w.blockSignals(True)
+                w.setChecked(bool(value))
+                w.blockSignals(False)
+
 
 class PromptBuilderWindow(QMainWindow):
 
@@ -306,7 +348,8 @@ class PromptBuilderWindow(QMainWindow):
         self.template_list.currentItemChanged.connect(self._on_template_selected)
 
         nav_footer = QLabel(
-            "Ctrl+Shift+C copies the preview. Ctrl+R resets the active template."
+            "Ctrl+F searches. Ctrl+Shift+C copies. Ctrl+S saves. "
+            "F5 regenerates. Ctrl+R resets."
         )
         nav_footer.setObjectName("nav_footer")
         nav_footer.setWordWrap(True)
@@ -403,6 +446,7 @@ class PromptBuilderWindow(QMainWindow):
         self.reset_btn = QPushButton("Reset")
         self.reset_btn.setObjectName("secondary")
         self.reset_btn.setMinimumHeight(40)
+        self.reset_btn.setToolTip("Clear saved values and restore template defaults.")
         self.reset_btn.clicked.connect(self._reset_form)
 
         button_row = QHBoxLayout()
@@ -543,7 +587,7 @@ class PromptBuilderWindow(QMainWindow):
         key = current.data(Qt.ItemDataRole.UserRole)
         self._load_template(key)
 
-    def _load_template(self, key: str):
+    def _load_template(self, key: str, restore_saved: bool = True):
         tpl = TEMPLATES[key]
         self._current_template_key = key
         self._settings.setValue("template/current", key)
@@ -553,12 +597,15 @@ class PromptBuilderWindow(QMainWindow):
         self.form_description.setText(tpl.description)
 
         form = FormBuilder(tpl, on_change=self._on_form_changed)
+        if restore_saved:
+            form.set_values(self._saved_values_for(key))
         self._current_form = form
         self.form_scroll.setWidget(form.container)
         self._regenerate()
         self.statusBar().showMessage(f"Configuring: {tpl.label}")
 
     def _on_form_changed(self):
+        self._save_current_form_values()
         if self._preview_is_manual:
             self._pending_form_changes = True
             if self._current_template_key:
@@ -571,6 +618,31 @@ class PromptBuilderWindow(QMainWindow):
             )
             return
         self._regenerate()
+
+    def _template_values_key(self, key: str) -> str:
+        return f"templates/{key}/values"
+
+    def _saved_values_for(self, key: str) -> dict[str, Any]:
+        raw = self._settings.value(self._template_values_key(key), "", type=str)
+        if not raw:
+            return {}
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError:
+            return {}
+        return value if isinstance(value, dict) else {}
+
+    def _save_current_form_values(self):
+        if not self._current_form or not self._current_template_key:
+            return
+        self._settings.setValue(
+            self._template_values_key(self._current_template_key),
+            json.dumps(self._current_form.values()),
+        )
+
+    def _clear_current_form_values(self):
+        if self._current_template_key:
+            self._settings.remove(self._template_values_key(self._current_template_key))
 
     def _regenerate(self):
         if not self._current_form or not self._current_template_key:
@@ -666,11 +738,14 @@ class PromptBuilderWindow(QMainWindow):
             self.statusBar().showMessage("Preview is empty. Nothing copied.", 4000)
             return
         QGuiApplication.clipboard().setText(text)
-        detail = (
-            f" Copied with placeholders for: {', '.join(self._empty_required_fields)}."
-            if self._empty_required_fields
-            else ""
-        )
+        details = []
+        if self._empty_required_fields:
+            details.append(
+                f"placeholders for: {', '.join(self._empty_required_fields)}"
+            )
+        if self._form_warnings:
+            details.append("review warnings still present")
+        detail = f" Copied with {'; '.join(details)}." if details else ""
         self.copy_btn.setText("Copied")
         self._copy_reset_timer.start(1600)
         self.statusBar().showMessage(
@@ -703,7 +778,9 @@ class PromptBuilderWindow(QMainWindow):
 
     def _reset_form(self):
         if self._current_template_key:
-            self._load_template(self._current_template_key)
+            key = self._current_template_key
+            self._clear_current_form_values()
+            self._load_template(key, restore_saved=False)
             self.statusBar().showMessage("Form reset to defaults.", 3000)
 
     def _on_preview_text_changed(self):
