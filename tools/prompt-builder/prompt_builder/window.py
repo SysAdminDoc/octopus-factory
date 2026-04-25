@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QSize, QSettings, QTimer
 from PyQt6.QtGui import QGuiApplication, QFont, QAction, QKeySequence
 from PyQt6.QtWidgets import (
     QApplication,
@@ -255,8 +255,12 @@ class PromptBuilderWindow(QMainWindow):
         self._rendering_preview = False
         self._preview_is_manual = False
         self._empty_required_fields: list[str] = []
+        self._settings = QSettings("octopus-factory", "Prompt Builder")
+        self._copy_reset_timer = QTimer(self)
+        self._copy_reset_timer.setSingleShot(True)
+        self._copy_reset_timer.timeout.connect(self._restore_copy_button)
         self._build_ui()
-        self._select_first_template()
+        self._restore_ui_state()
 
     def _build_ui(self):
         # ─── Templates list (left rail) ───
@@ -376,15 +380,23 @@ class PromptBuilderWindow(QMainWindow):
         self.wrap_toggle.setToolTip("Toggle wrapping for reading long generated prompts.")
         self.wrap_toggle.toggled.connect(self._toggle_preview_wrap)
 
-        self.copy_btn = QPushButton("Copy to clipboard")
+        self.copy_btn = QPushButton("Copy")
         self.copy_btn.setObjectName("primary")
         self.copy_btn.setMinimumHeight(40)
+        self.copy_btn.setToolTip("Copy the current preview to the clipboard.")
         self.copy_btn.clicked.connect(self._copy_to_clipboard)
 
-        self.save_btn = QPushButton("Save as .txt…")
+        self.save_btn = QPushButton("Save…")
         self.save_btn.setObjectName("secondary")
         self.save_btn.setMinimumHeight(40)
+        self.save_btn.setToolTip("Save the current preview as a text file.")
         self.save_btn.clicked.connect(self._save_as_file)
+
+        self.regenerate_btn = QPushButton("Regenerate")
+        self.regenerate_btn.setObjectName("secondary")
+        self.regenerate_btn.setMinimumHeight(40)
+        self.regenerate_btn.setToolTip("Restore the preview from the current form values.")
+        self.regenerate_btn.clicked.connect(self._regenerate)
 
         self.reset_btn = QPushButton("Reset")
         self.reset_btn.setObjectName("secondary")
@@ -395,6 +407,7 @@ class PromptBuilderWindow(QMainWindow):
         button_row.setSpacing(10)
         button_row.addWidget(self.copy_btn, 2)
         button_row.addWidget(self.save_btn, 1)
+        button_row.addWidget(self.regenerate_btn, 1)
         button_row.addWidget(self.reset_btn, 1)
 
         self.count_label = QLabel("0 lines · 0 chars")
@@ -422,17 +435,17 @@ class PromptBuilderWindow(QMainWindow):
         preview_layout.addLayout(button_row)
 
         # ─── Splitter ───
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(nav_col)
-        splitter.addWidget(form_col)
-        splitter.addWidget(preview_col)
-        splitter.setSizes([285, 465, 610])
-        splitter.setStretchFactor(0, 0)
-        splitter.setStretchFactor(1, 1)
-        splitter.setStretchFactor(2, 1)
-        splitter.setHandleWidth(6)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.addWidget(nav_col)
+        self.splitter.addWidget(form_col)
+        self.splitter.addWidget(preview_col)
+        self.splitter.setSizes([285, 465, 610])
+        self.splitter.setStretchFactor(0, 0)
+        self.splitter.setStretchFactor(1, 1)
+        self.splitter.setStretchFactor(2, 1)
+        self.splitter.setHandleWidth(6)
 
-        self.setCentralWidget(splitter)
+        self.setCentralWidget(self.splitter)
 
         # ─── Status bar + shortcuts ───
         self.setStatusBar(QStatusBar())
@@ -448,6 +461,16 @@ class PromptBuilderWindow(QMainWindow):
         reset_action.triggered.connect(self._reset_form)
         self.addAction(reset_action)
 
+        save_action = QAction("Save prompt", self)
+        save_action.setShortcut(QKeySequence("Ctrl+S"))
+        save_action.triggered.connect(self._save_as_file)
+        self.addAction(save_action)
+
+        regenerate_action = QAction("Regenerate preview", self)
+        regenerate_action.setShortcut(QKeySequence("F5"))
+        regenerate_action.triggered.connect(self._regenerate)
+        self.addAction(regenerate_action)
+
         search_action = QAction("Search prompt types", self)
         search_action.setShortcut(QKeySequence("Ctrl+F"))
         search_action.triggered.connect(lambda: self.search_edit.setFocus())
@@ -458,6 +481,30 @@ class PromptBuilderWindow(QMainWindow):
     def _select_first_template(self):
         if self.template_list.count():
             self.template_list.setCurrentRow(0)
+
+    def _restore_ui_state(self):
+        geometry = self._settings.value("window/geometry")
+        if geometry:
+            self.restoreGeometry(geometry)
+
+        splitter_state = self._settings.value("window/splitterState")
+        if splitter_state:
+            self.splitter.restoreState(splitter_state)
+
+        self.wrap_toggle.setChecked(
+            self._settings.value("preview/wrapLines", False, type=bool)
+        )
+
+        saved_key = self._settings.value("template/current", "", type=str)
+        if saved_key:
+            for row in range(self.template_list.count()):
+                item = self.template_list.item(row)
+                if item.data(Qt.ItemDataRole.UserRole) == saved_key:
+                    self.template_list.setCurrentRow(row)
+                    break
+
+        if not self.template_list.currentItem():
+            self._select_first_template()
 
     def _filter_templates(self, query: str):
         needle = query.strip().lower()
@@ -497,6 +544,7 @@ class PromptBuilderWindow(QMainWindow):
     def _load_template(self, key: str):
         tpl = TEMPLATES[key]
         self._current_template_key = key
+        self._settings.setValue("template/current", key)
         self._preview_is_manual = False
         self.form_group.setText(f"{_template_group(key)} template")
         self.form_title.setText(tpl.label)
@@ -556,6 +604,8 @@ class PromptBuilderWindow(QMainWindow):
             if self._empty_required_fields
             else ""
         )
+        self.copy_btn.setText("Copied")
+        self._copy_reset_timer.start(1600)
         self.statusBar().showMessage(
             f"Copied {len(text)} characters to clipboard.{detail}", 5000
         )
@@ -568,14 +618,18 @@ class PromptBuilderWindow(QMainWindow):
         suggested = "prompt.txt"
         if self._current_template_key:
             suggested = f"prompt-{self._current_template_key.replace('_', '-')}.txt"
+        save_dir = self._settings.value(
+            "files/lastSaveDir", str(Path.home()), type=str
+        )
         path, _ = QFileDialog.getSaveFileName(
             self, "Save prompt as text file",
-            os.path.join(str(Path.home()), suggested),
+            os.path.join(save_dir, suggested),
             "Text files (*.txt);;All files (*.*)",
         )
         if path:
             try:
                 Path(path).write_text(text, encoding="utf-8")
+                self._settings.setValue("files/lastSaveDir", str(Path(path).parent))
                 self.statusBar().showMessage(f"Saved to {path}", 5000)
             except OSError as exc:
                 self.statusBar().showMessage(f"Save failed: {exc}", 6000)
@@ -598,8 +652,12 @@ class PromptBuilderWindow(QMainWindow):
             else QPlainTextEdit.LineWrapMode.NoWrap
         )
         self.preview.setLineWrapMode(mode)
+        self._settings.setValue("preview/wrapLines", enabled)
         state = "enabled" if enabled else "disabled"
         self.statusBar().showMessage(f"Line wrap {state}.", 2000)
+
+    def _restore_copy_button(self):
+        self.copy_btn.setText("Copy")
 
     def _update_count(self):
         text = self.preview.toPlainText()
@@ -638,3 +696,8 @@ class PromptBuilderWindow(QMainWindow):
             self.form_hint.setProperty("tone", "ok")
         self.form_hint.style().unpolish(self.form_hint)
         self.form_hint.style().polish(self.form_hint)
+
+    def closeEvent(self, event):
+        self._settings.setValue("window/geometry", self.saveGeometry())
+        self._settings.setValue("window/splitterState", self.splitter.saveState())
+        super().closeEvent(event)
