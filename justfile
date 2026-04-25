@@ -131,6 +131,21 @@ hooks-uninstall:
 test:
     cd tests/prompts && npx promptfoo eval
 
+# Launch the prompt-builder GUI (PyQt6 helper for assembling factory prompts).
+[group('tools')]
+prompt-builder *ARGS:
+    cd tools/prompt-builder && python -m prompt_builder {{ARGS}}
+
+# Build the prompt-builder as a standalone executable via PyInstaller.
+[group('dev')]
+prompt-builder-build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd tools/prompt-builder
+    python -m pip install -r requirements.txt --quiet
+    python -m PyInstaller prompt-builder.spec --clean --noconfirm
+    echo "Built: tools/prompt-builder/dist/prompt-builder$( [ \"$OSTYPE\" = msys -o \"$OSTYPE\" = cygwin ] && echo .exe || true )"
+
 # Run bats-core unit tests (syntax / preset / justfile smoke).
 [group('dev')]
 test-bats *ARGS:

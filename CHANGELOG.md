@@ -6,6 +6,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+### Added — `tools/prompt-builder/` GUI helper application
+
+A companion PyQt6 desktop app that assembles factory prompts via a form + live preview, ending in a one-click clipboard copy. Lives at `tools/prompt-builder/` so prompt templates stay in sync with `prompts/examples.md` and the canonical recipes.
+
+**Layout:** three-pane window (Catppuccin Mocha dark theme via QSS).
+- **Left rail:** template picker — Factory Loop / Overnight / Audit-Only / Plan / Single Task / Roadmap Research / Release Build / AI Scrub / PDF Redesign / PDF Derivatives.
+- **Middle column:** per-template form. Fields render automatically from a typed `Field` definition (`path` with Browse button / `text` / `multiline` / `int` spinner / `choice` combo / `checkbox` / `paths` multi-line for overnight repo lists).
+- **Right column:** live monospace prompt preview + Copy / Save / Reset buttons + line/char counter.
+
+**Per-template fields cover the real knobs:**
+- Factory Loop: iteration count (1-7 slider), routing preset (6-way combo), 11 mode flags as checkboxes (`--audit-only`, `--skip-preflight`, `--skip-scrub`, `--manual-scrub`, `--skip-wip-adoption`, `--skip-logo`, `--force-logo`, `--raster-logo`, `--final-codex-pass`, `--require-orchestrator`, `--single-session`), `--plan` toggle, freeform notes.
+- Overnight: multi-line repo list, duration presets (1h / 2h / 4h / 8h / weekend / custom), max-spend, convergence rotations, sleep, cycle timeout, auto-discover dir, `--no-rotate` / `--quiet` / `--fail-fast` / `--require-clean-tree` toggles, foreground vs detached launch.
+- Audit-Only / Plan / Single Task / Roadmap Research / Release / AI Scrub / PDF Redesign / PDF Derivatives: appropriately scoped per type.
+
+**Live preview behavior:** every field change re-renders the prompt in real time. The preview is editable — last-mile tweaks before copy stay in the buffer until Reset. Cursor position is preserved across re-renders so editing isn't disrupted by knob changes.
+
+**Output paths:** Copy to clipboard (Ctrl+Shift+C), Save as `.txt` to disk, Reset to defaults (Ctrl+R).
+
+**Build pipeline:** PyInstaller spec (`prompt-builder.spec`) bundles to a single ~50MB executable. Both `prompt_builder/__main__.py` and the runtime hook call `multiprocessing.freeze_support()` per the global PyInstaller fork-bomb guards in `~/.claude/CLAUDE.md`. Excludes tkinter / test / pip / setuptools / wheel from the bundle to trim size.
+
+**Ship-from-source:** `just prompt-builder` launches the GUI via `python -m prompt_builder`. `just prompt-builder-build` produces the standalone executable.
+
+**Verified:**
+- All 10 templates render with default values without exception.
+- Window constructs cleanly under headless `QT_QPA_PLATFORM=minimal`.
+- Templates cover every prompt scenario in `prompts/examples.md`.
+- PyQt6 6.10.0 import works on the dev machine; spec excludes-list trimmed.
+
+**Why this exists:** the canonical `prompts/examples.md` library covers 14 scenarios but tweaking iteration counts / model presets / flag combinations means hand-editing before pasting. The GUI removes that friction — every knob is a form field, the preview re-renders live, the Copy button hands you a finished prompt. Especially useful on Windows where shell-piping prompts is awkward.
+
 ### Changed — Overnight wrapper: live visibility + 15 new flags
 **Why:** user feedback on v0.6.0: "When overnight runs, I can't see what it's doing." Cycle output was being written exclusively to `~/.claude-octopus/logs/overnight/<run-id>/cycle-NNN.log` with nothing on the terminal — silent until summary. Fixed alongside a feature batch.
 

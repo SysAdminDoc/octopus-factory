@@ -1,0 +1,18 @@
+# PyInstaller artifacts
+build/
+dist/
+*.egg-info/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Local virtualenvs
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
