@@ -27,6 +27,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 - `.github/workflows/ci.yml` runs `just lint-directives` on every push + PR alongside preset-verify and the bats suite.
 
 ### Changed
+- `bin/lint-directives.py` rejects unknown frontmatter fields with a `did you mean ...?` suggestion (`difflib.get_close_matches`). Catches the bug class the linter exists to prevent — `agent:` (singular typo) instead of `agents:` (plural correct) was previously accepted, and the directive loader silently dropped the value. Now: hard fail with `unknown field 'agent' — did you mean 'agents'?`. Allowed fields are whitelisted by directory: directives may use `name / description / type / originSessionId / version / triggers / agents`; recipes may use the same minus `triggers` + `agents`.
+- `bin/lint-directives.py` enforces filename↔name suffix convention every existing file already follows: directives must end with `Directive`, recipes must end with `Recipe`. Catches "I copied a directive into recipes/ and forgot to rename" mistakes.
+- `tests/bats/directives.bats` grows from 7 to 11 tests covering the new failures (typo with did-you-mean, recipe-with-directive-only-fields, both suffix conventions). Total bats suite: 29 tests.
+
+### Changed
 - Routing presets `claude-heavy`, `codex-heavy`, `copilot-only`, `direct-only` now include `providers.codex.image: "gpt-image-1"` in their provider catalog (was previously only in `balanced` + `copilot-heavy`). Semantically a no-op since image-routing decisions live in `routing.roles.image`, not the catalog — but consistent with the other two presets and matches what `_base.json` defines. Catalog drift fixed by build pipeline.
 - All preset JSONs are now alphabetically key-sorted (jq `-S` output). One-time cosmetic reorder; semantically equivalent.
 

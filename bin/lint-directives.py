@@ -9,7 +9,10 @@ phase proceeds without its guidance. This linter makes that failure loud.
 
 Schema (intentionally tiny — no external deps):
 
-  name         (str, required)        Human-readable title
+  name         (str, required)        Human-readable title. Must end with the
+                                      word matching the file's directory:
+                                      "Directive" for memory/directives/*.md,
+                                      "Recipe" for memory/recipes/*.md.
   description  (str, required)        One-paragraph summary
   type         (enum, required)       One of: knowledge | reference
 
@@ -22,6 +25,12 @@ Schema (intentionally tiny — no external deps):
   Optional everywhere:
     originSessionId  (str)            UUID of the session that authored it
     version          (str)            SemVer-style version string
+
+  Unknown fields are rejected with a "did you mean ...?" suggestion. This
+  catches the bug class the linter exists to prevent: a misspelled field
+  name (e.g. `agent:` instead of `agents:`) makes the directive loader's
+  YAML parser silently drop the value, and the recipe runs without that
+  guidance with no warning.
 
 Usage:
   lint-directives.py [PATH...]   # lint specific files
@@ -40,6 +49,7 @@ them, swap the parser for PyYAML in one place.
 
 from __future__ import annotations
 
+import difflib
 import json
 import os
 import re
@@ -52,6 +62,11 @@ DEFAULT_DIRS = [REPO_ROOT / "memory" / "directives", REPO_ROOT / "memory" / "rec
 VALID_TYPES = {"knowledge", "reference"}
 REQUIRED_EVERYWHERE = ("name", "description", "type")
 REQUIRED_DIRECTIVE_ONLY = ("triggers", "agents")
+ALLOWED_EVERYWHERE = {"name", "description", "type", "originSessionId", "version"}
+ALLOWED_DIRECTIVE = ALLOWED_EVERYWHERE | {"triggers", "agents"}
+
+# Map directory name → required suffix on the human-readable `name` field.
+NAME_SUFFIX_BY_DIR = {"directives": "Directive", "recipes": "Recipe"}
 
 
 class LintError(Exception):
@@ -151,6 +166,32 @@ def validate(path: Path) -> list[str]:
                 errors.append(
                     f"directive field {field!r} entries must be non-empty strings"
                 )
+
+    # Reject unknown fields with a suggestion. Catches `agent:` vs `agents:`
+    # typos that the YAML loader would otherwise drop silently.
+    allowed = ALLOWED_DIRECTIVE if is_directive else ALLOWED_EVERYWHERE
+    for key in fm.keys():
+        if key in allowed:
+            continue
+        suggestions = difflib.get_close_matches(key, allowed, n=1, cutoff=0.6)
+        if suggestions:
+            errors.append(
+                f"unknown field {key!r} — did you mean {suggestions[0]!r}?"
+            )
+        else:
+            errors.append(
+                f"unknown field {key!r} (allowed: {sorted(allowed)})"
+            )
+
+    # Enforce filename ↔ `name` suffix convention every existing file follows.
+    suffix = NAME_SUFFIX_BY_DIR.get(path.parent.name)
+    name = fm.get("name")
+    if suffix and isinstance(name, str) and name.strip():
+        if not name.strip().endswith(suffix):
+            errors.append(
+                f"name {name!r} must end with {suffix!r} "
+                f"(every file under memory/{path.parent.name}/ follows this convention)"
+            )
 
     return errors
 

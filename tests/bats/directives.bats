@@ -119,3 +119,76 @@ EOF
     }
     rm -rf "$tmp"
 }
+
+@test "lint-directives: catches misspelled field with did-you-mean" {
+    local tmp
+    tmp="$(mktemp -d)"
+    mkdir -p "$tmp/directives"
+    cat > "$tmp/directives/typo.md" <<'EOF'
+---
+name: Typo Directive
+description: agent (singular) is a common typo for agents (plural)
+type: knowledge
+triggers: [test]
+agent: [singular-typo]
+---
+EOF
+    run --separate-stderr python3 "$LINT" "$tmp/directives"
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"did you mean 'agents'?"* ]]
+    rm -rf "$tmp"
+}
+
+@test "lint-directives: rejects recipes carrying directive-only fields" {
+    local tmp
+    tmp="$(mktemp -d)"
+    mkdir -p "$tmp/recipes"
+    cat > "$tmp/recipes/bad.md" <<'EOF'
+---
+name: Bad Recipe
+description: recipes shouldn't have directive-only fields like triggers
+type: reference
+triggers: [should-not-be-here]
+---
+EOF
+    run --separate-stderr python3 "$LINT" "$tmp/recipes"
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"unknown field 'triggers'"* ]]
+    rm -rf "$tmp"
+}
+
+@test "lint-directives: enforces Directive name suffix in directives/" {
+    local tmp
+    tmp="$(mktemp -d)"
+    mkdir -p "$tmp/directives"
+    cat > "$tmp/directives/wrong-suffix.md" <<'EOF'
+---
+name: Wrong Name Convention
+description: missing the Directive suffix
+type: knowledge
+triggers: [test]
+agents: [tester]
+---
+EOF
+    run --separate-stderr python3 "$LINT" "$tmp/directives"
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"must end with 'Directive'"* ]]
+    rm -rf "$tmp"
+}
+
+@test "lint-directives: enforces Recipe name suffix in recipes/" {
+    local tmp
+    tmp="$(mktemp -d)"
+    mkdir -p "$tmp/recipes"
+    cat > "$tmp/recipes/wrong-suffix.md" <<'EOF'
+---
+name: Forgot The Suffix
+description: missing the Recipe suffix
+type: reference
+---
+EOF
+    run --separate-stderr python3 "$LINT" "$tmp/recipes"
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"must end with 'Recipe'"* ]]
+    rm -rf "$tmp"
+}
