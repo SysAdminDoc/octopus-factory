@@ -315,17 +315,9 @@ if [[ ${#PREFLIGHT_ERRORS[@]} -gt 0 ]]; then
     exit 1
 fi
 
-if [[ -f "$LOCK_FILE" ]]; then
-    LOCKED_PID=$(cat "$LOCK_FILE" 2>/dev/null || echo "?")
-    echo "factory-overnight: lock file $LOCK_FILE exists (pid=$LOCKED_PID)." >&2
-    echo "  If no session is actually running: rm $LOCK_FILE" >&2
-    exit 1
-fi
-
-if ! $DRY_RUN && ! command -v claude &>/dev/null; then
-    echo "factory-overnight: claude CLI not on PATH" >&2
-    exit 1
-fi
+# Note: --show-config short-circuit lives further down (after time + run-id
+# resolution) so the dump shows resolved values. Lock + claude-CLI checks
+# below are only relevant for actual runs, so they sit AFTER --show-config.
 
 # ─── Resolve start + end time ───────────────────────────────────────────────
 NOW_EPOCH=$(date +%s)
@@ -424,6 +416,19 @@ Dry-run:            $DRY_RUN
 Logs:               $RUN_DIR
 EOF
     exit 0
+fi
+
+# ─── Lock + claude PATH check (only when we're actually going to run) ───────
+if [[ -f "$LOCK_FILE" ]]; then
+    LOCKED_PID=$(cat "$LOCK_FILE" 2>/dev/null || echo "?")
+    echo "factory-overnight: lock file $LOCK_FILE exists (pid=$LOCKED_PID)." >&2
+    echo "  If no session is actually running: rm $LOCK_FILE" >&2
+    exit 1
+fi
+
+if ! $DRY_RUN && ! command -v claude &>/dev/null; then
+    echo "factory-overnight: claude CLI not on PATH" >&2
+    exit 1
 fi
 
 # ─── Lock + signal handling ─────────────────────────────────────────────────
