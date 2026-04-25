@@ -7,6 +7,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 ## [Unreleased]
 
 ### Added
+- (track future improvements here)
+
+---
+
+## [0.6.0] — 2026-04-25
+
+Two threads converge in this release: the long-running infrastructure consolidation work that landed across nine post-v0.5.1 commits (justfile, overlay preset system, pre-commit hooks, bats tests, GitHub Actions CI, directive linter), AND a new overnight execution mode that lets the factory run for hours unattended via an external wrapper.
+
+### Added — Overnight execution mode
+- `bin/factory-overnight.sh` — round-robin wrapper for multi-hour unattended runs. Spawns a fresh `claude --print` per cycle to avoid context fragmentation; each cycle runs the recipe with `--overnight` (one Large-Repo Mode iteration, exits cleanly), then the wrapper sleeps + respawns. Wall-clock end time (`--until 06:00`), duration (`--duration 8h`), max-cycles cap, cumulative cost cap auto-distributed across cycles, per-cycle hard timeout (default 30 min), convergence-rotation counter that retires repos after N consecutive `no-op` cycles.
+- `--overnight` recipe flag — forces Large-Repo Mode (one iteration, atomic per-task commits + push), disables stop-on-convergence within the cycle (the wrapper handles rotation across cycles), suppresses Q3 release on routine cycles, writes `cycle_outcome` (advanced / researched / no-op) to `.factory/state.yaml` so the wrapper's rotation counter knows when a repo has converged.
+- `just overnight` recipe — pass-through to the wrapper with the same flags.
+- Recipe gains an "Overnight Mode" section under Execution Modes documenting the wrapper contract, cycle outcomes, multi-repo round-robin behavior, status/halt commands, and an end-to-end example.
+- Prompt template gains an "OPTIONAL: OVERNIGHT MODE" section explaining when to use the wrapper vs. paste the interactive prompt.
+- Sentinel files: `~/.factory-overnight.lock` (active session marker), `~/.factory-overnight.stop` (graceful halt at next cycle boundary), `~/.factory-overnight.status` (human-readable status, auto-updated each cycle).
+- Per-cycle log + end-of-run summary at `~/.claude-octopus/logs/overnight/<run-id>/`.
+
+### Added — Infrastructure consolidation (nine post-v0.5.1 commits)
 - `justfile` at repo root — discoverable, grouped task surface for every `bin/` script (`just`, `just doctor`, `just route copilot-heavy`, `just codex audit`, `just secret-scan`, etc.). Recipes are thin pass-throughs; all underlying flags work after the recipe name. Groups: preflight, phases, state, tools, dev. Closes the "no unified entry point on Windows" friction without touching any existing script. Install: `winget install Casey.Just` / `brew install just` / `apt install just`.
 - `just` listed as optional prereq in `bin/install.sh` with per-platform install hints.
 - README `### just (recommended)` subsection under **Use** with examples + install line.
@@ -16,26 +34,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 - `.githooks/pre-commit` — repo-local git hook that runs `preset-verify` whenever any `config/presets/` file (preset, overlay, or build script) is staged. Blocks commits where a generated preset has drifted from its source, with a message naming the offending file and the fix (`just preset-build && git add config/presets/`). `--no-verify` bypass available for intentional skips.
 - `just hooks-install` / `just hooks-uninstall` — set/unset `core.hooksPath = .githooks`.
 - `docs/CONTRIBUTING.md` gains a **First-time setup** section pointing at `just hooks-install`, and an **Editing routing presets** section documenting the overlay workflow.
-- `tests/bats/` — first automated test suite. 18 tests across 3 files: `syntax.bats` (`bash -n` on every shell script + executability), `presets.bats` (JSON validity, required schema fields, `_mode` ↔ filename, `build.sh --verify` clean, idempotent rebuild), `justfile.bats` (recipes parse + run; auto-skip if `just` not installed). Catches the kind of silent failure that motivated v0.5.1's codex-direct workaround.
+- `tests/bats/` — automated test suite. 29 tests across 4 files: `syntax.bats` (`bash -n` on every shell script + executability), `presets.bats` (JSON validity, required schema fields, `_mode` ↔ filename, `build.sh --verify` clean, idempotent rebuild), `justfile.bats` (recipes parse + run; auto-skip if `just` not installed), `directives.bats` (frontmatter linter regression coverage). Catches the kind of silent failure that motivated v0.5.1's codex-direct workaround.
 - `just test-bats` recipe (passes flags through — `just test-bats --tap` for CI output).
-- `.github/workflows/ci.yml` — GitHub Actions matrix (Ubuntu / macOS / Windows Git Bash) running on every push to `main` + every PR. Steps: install just (extractions/setup-just) + bats (bats-core/bats-action) → `just preset-verify` → `just test-bats --tap`. CI badge added to README.
+- `.github/workflows/ci.yml` — GitHub Actions matrix (Ubuntu / macOS / Windows Git Bash) running on every push to `main` + every PR. Steps: install just + bats → `just preset-verify` → `just lint-directives` → `just test-bats --tap`. CI badge added to README.
 - `docs/CONTRIBUTING.md` gains a **Testing** section with local commands + CI link.
-- `bin/lint-directives.py` — stdlib-only validator (no PyYAML, no jsonschema) for YAML frontmatter on every `memory/directives/*.md` + `memory/recipes/*.md`. Schema: `name` / `description` / `type ∈ {knowledge, reference}` required everywhere; directives additionally need non-empty `triggers` + `agents` arrays. Detects: missing fence, missing fields, wrong enum value, empty array, malformed key:value lines, duplicate keys. Closes the "malformed directive frontmatter silently fails the lazy loader" gap explicitly flagged in the v0.5.1 architecture review. UTF-8 output forced so the ✓/✗ lines render on Windows cp1252 consoles.
+- `bin/lint-directives.py` — stdlib-only validator (no PyYAML, no jsonschema) for YAML frontmatter on every `memory/directives/*.md` + `memory/recipes/*.md`. Schema: `name` / `description` / `type ∈ {knowledge, reference}` required everywhere; directives additionally need non-empty `triggers` + `agents` arrays. Detects: missing fence, missing fields, wrong enum value, empty array, malformed key:value lines, duplicate keys, unknown fields with `did you mean ...?` suggestion. Closes the "malformed directive frontmatter silently fails the lazy loader" gap explicitly flagged in the v0.5.1 architecture review. UTF-8 output forced so the ✓/✗ lines render on Windows cp1252 consoles.
 - `just lint-directives` recipe (passes flags through; `just lint-directives memory/directives/` to scope).
-- `tests/bats/directives.bats` — 7 tests wrapping the linter (clean tree, --help, missing fence, missing type, wrong enum, empty triggers, recipes don't require triggers/agents).
 - `.githooks/pre-commit` gains a second branch: lints staged `memory/(directives|recipes)/*.md` files. Skips with a warning if `python3` is missing.
-- `.github/workflows/ci.yml` runs `just lint-directives` on every push + PR alongside preset-verify and the bats suite.
 
 ### Changed
 - `bin/lint-directives.py` rejects unknown frontmatter fields with a `did you mean ...?` suggestion (`difflib.get_close_matches`). Catches the bug class the linter exists to prevent — `agent:` (singular typo) instead of `agents:` (plural correct) was previously accepted, and the directive loader silently dropped the value. Now: hard fail with `unknown field 'agent' — did you mean 'agents'?`. Allowed fields are whitelisted by directory: directives may use `name / description / type / originSessionId / version / triggers / agents`; recipes may use the same minus `triggers` + `agents`.
 - `bin/lint-directives.py` enforces filename↔name suffix convention every existing file already follows: directives must end with `Directive`, recipes must end with `Recipe`. Catches "I copied a directive into recipes/ and forgot to rename" mistakes.
-- `tests/bats/directives.bats` grows from 7 to 11 tests covering the new failures (typo with did-you-mean, recipe-with-directive-only-fields, both suffix conventions). Total bats suite: 29 tests.
-
-### Changed
 - Routing presets `claude-heavy`, `codex-heavy`, `copilot-only`, `direct-only` now include `providers.codex.image: "gpt-image-1"` in their provider catalog (was previously only in `balanced` + `copilot-heavy`). Semantically a no-op since image-routing decisions live in `routing.roles.image`, not the catalog — but consistent with the other two presets and matches what `_base.json` defines. Catalog drift fixed by build pipeline.
 - All preset JSONs are now alphabetically key-sorted (jq `-S` output). One-time cosmetic reorder; semantically equivalent.
+- Recipe mode-flags table adds `--overnight` row.
+- Recipe Single-Session Mode section adds an "Overnight Mode" subsection above the existing mode-flags reference.
 
----
+### Why overnight mode
+
+User asked: "How can I make this run for hours? I want to kick it off before bed and let it run." Three constraints made longer single-invocation runs impractical:
+
+1. **Single-session mode caps itself** — Large-Repo Mode is built for finite per-invocation work (1 iteration, 3 tasks, exit) and that's the right pattern for stability. But it directly conflicts with multi-hour intent.
+2. **Stop-on-convergence fires fast** — once the `Now` tier is empty + debate verdicts pass + no breakers, the recipe terminates. Even with the v0.5.0 9-dim research expanding the ROADMAP, on smaller repos this exhausts in 1-2 hours.
+3. **Master Claude session context death** — even with auto-compact at 85%, an 8-hour conversation eventually fragments. The factory's persistent state.yaml + atomic commits are designed precisely so a *new* session can resume — but you have to actually start one.
+
+The overnight wrapper turns the third constraint into the solution: it explicitly respawns fresh sessions per cycle. Cumulative state lives in the repos themselves (state.yaml, atomic commits, ROADMAP.md, docs/research/iter-N-*.md) so each fresh session resumes where the prior left off. Multi-hour runs become a sequence of finite, atomic, recoverable cycles instead of one fragile long-running session.
+
+### Verification
+
+- factory-overnight.sh: dry-run with --max-cycles 2 produces full event log + status file + summary; passes `bash -n` syntax check.
+- justfile: `just --list` shows the new `overnight` recipe under preflight group.
+- Recipe + prompt cross-references: `--overnight` flag appears in (1) recipe mode-flags table, (2) Overnight Mode section's wrapper contract, (3) Phase substitution semantics, (4) prompt template optional-variant section. All consistent.
+- `just lint-directives` passes 15/15 directives + recipes after the recipe edit.
+- Full bats suite (29 tests) passes after the changes.
+- Pre-commit hook catches my recipe modification through the linter; manual `python3 bin/lint-directives.py` confirms clean.
+
+### Note on testing the overnight wrapper
+
+User asked to test the overnight wrapper themselves on real repos rather than have me burn quota on smoke runs. The wrapper is verified at the loop-logic + argument-parsing + dry-run layer. Live multi-hour invocation will be exercised on the user's first overnight run; convergence-rotation behavior + per-cycle budget distribution + sentinel-file halt will be validated against real cycle outputs.
+
+[0.6.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.6.0
 
 ## [0.5.1] — 2026-04-24
 
@@ -435,6 +473,6 @@ Initial public release. Full pipeline working end-to-end on Windows 11 + Git Bas
 - Linux Ubuntu 24.04 / Debian 12 / Arch — light testing
 - Provider stack: Claude Max, ChatGPT Pro Codex, Gemini Pro, GitHub Copilot
 
-[Unreleased]: https://github.com/SysAdminDoc/octopus-factory/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/SysAdminDoc/octopus-factory/compare/v0.6.0...HEAD
 [0.2.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.2.0
 [0.1.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.1.0

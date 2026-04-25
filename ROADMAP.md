@@ -4,6 +4,33 @@ Prioritized integration plan based on a survey of related projects (Aider, Cline
 
 Each item cites the upstream source so contributors can lift code with attribution. Items are ordered by leverage — highest-impact first.
 
+## v0.6.0 — shipped 2026-04-25
+
+### Overnight execution mode + infrastructure consolidation
+
+**Status:** shipped in v0.6.0
+**Why:** User wanted to kick off the factory before bed and have it run for hours unattended. A single Claude Code session can't sustain 8+ hours due to context fragmentation, but the factory's persistent state design was already built for resumable atomic cycles — the missing piece was an external respawn loop. Plus nine post-v0.5.1 commits' worth of infrastructure landed (justfile, overlay preset system, pre-commit hooks, bats tests, GitHub Actions CI, directive linter) that all warranted a release.
+
+**What shipped:**
+
+*Overnight mode:*
+- `bin/factory-overnight.sh` — round-robin wrapper. Spawns fresh `claude --print` per cycle (avoids context fragmentation). Wall-clock end (`--until 06:00`), duration (`--duration 8h`), per-cycle hard timeout (default 30 min), cumulative cost cap auto-distributed across cycles, convergence-rotation counter retires repos after N consecutive `no-op` cycles, multi-repo round-robin, sentinel-file halt (`~/.factory-overnight.stop`), live status file (`~/.factory-overnight.status`).
+- `--overnight` recipe flag — forces Large-Repo Mode (one iteration, atomic per-task commits + push), disables stop-on-convergence within the cycle, suppresses Q3 release on routine cycles, writes `cycle_outcome` (advanced / researched / no-op) for the wrapper's rotation counter.
+- `just overnight` recipe — pass-through to the wrapper.
+- Recipe + prompt template gain dedicated Overnight Mode sections.
+
+*Infrastructure consolidation:*
+- `justfile` — discoverable task surface for every `bin/` script (preflight, phases, state, tools, dev groups).
+- `config/presets/overlays/_base.json` + per-mode overlays + `build.sh` — DRY source of truth for the 6 routing presets. Edit shared fields once, regenerate every preset.
+- `.githooks/pre-commit` — blocks preset drift + lints directive frontmatter on staged commits.
+- `tests/bats/` — 29 automated tests (syntax / presets / justfile / directives).
+- `.github/workflows/ci.yml` — Ubuntu / macOS / Windows matrix, runs preset-verify + lint + bats on every push.
+- `bin/lint-directives.py` — stdlib-only YAML frontmatter validator with did-you-mean suggestions for typos. Closes the lazy-loader silent-fail gap.
+
+**Closes:** the "single Claude session can't run for 8 hours" friction + nine commits' worth of post-v0.5.1 infrastructure that needed a release tag.
+
+---
+
 ## v0.5.1 — shipped 2026-04-24
 
 ### Codex direct-dispatch + factory-doctor diagnostic

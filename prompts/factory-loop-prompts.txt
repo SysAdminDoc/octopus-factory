@@ -292,6 +292,59 @@ judge quota impact before kicking off.
 Begin.
 
 =============================================================================
+ OPTIONAL: OVERNIGHT MODE (multi-hour autonomous run via external wrapper)
+=============================================================================
+
+For multi-hour unattended runs ("kick it off before bed, see progress in
+the morning"), use the bin/factory-overnight.sh wrapper instead of pasting
+the prompt above. The wrapper:
+
+  - Spawns fresh `claude --print` sessions per cycle (avoids context death
+    on long runs)
+  - Round-robins across multiple repos (one cycle each, rotating)
+  - Wall-clock end time (--until 06:00) or duration (--duration 8h)
+  - Per-cycle 30-min hard timeout (no hung cycle blocks the loop)
+  - Cumulative cost cap auto-distributed across remaining cycles
+  - Convergence-rotation: retires a repo after N cycles with no new work
+  - Sentinel stop file (~/.factory-overnight.stop) for graceful interrupt
+  - Status file (~/.factory-overnight.status) readable any time
+  - Per-cycle logs at ~/.claude-octopus/logs/overnight/<run-id>/
+
+Each cycle invokes the recipe with --overnight, which:
+  - Forces Large-Repo Mode (one iteration, max 3 Now-tier tasks per cycle)
+  - Disables stop-on-convergence within the cycle (wrapper handles it)
+  - Suppresses Q3 release on routine cycles (commits + push only)
+  - Writes cycle_outcome (advanced / researched / no-op) to state.yaml so
+    the wrapper's rotation counter knows when a repo has converged
+
+Pre-flight: run bin/factory-doctor.sh once before launching. Verify the
+overnight wrapper script is executable. Start from a terminal that
+survives logout (tmux / screen / PowerShell window that stays open).
+
+Single-repo, 8-hour run, $40 budget, halt at 6am:
+  bash ~/repos/octopus-factory/bin/factory-overnight.sh \
+      ~/repos/<NAME> \
+      --until 06:00 \
+      --max-spend-total 40
+
+Multi-repo round-robin (no time limit, runs until convergence on every
+repo or until you halt with --stop):
+  bash ~/repos/octopus-factory/bin/factory-overnight.sh \
+      ~/repos/<A> ~/repos/<B> ~/repos/<C>
+
+Watching:
+  bash ~/repos/octopus-factory/bin/factory-overnight.sh --status
+  tail -f ~/.claude-octopus/logs/overnight/<run-id>/overnight.log
+
+Halting cleanly:
+  bash ~/repos/octopus-factory/bin/factory-overnight.sh --stop
+
+The wrapper does NOT need this prompt template — it builds its own
+per-cycle prompt internally that delegates to the recipe with
+--overnight semantics. You only paste the prompt above when running a
+SINGLE invocation interactively (where you stay in the chat).
+
+=============================================================================
  OPTIONAL: FINAL-CODEX-PASS VARIANT (release-day high-signal audit)
 =============================================================================
 

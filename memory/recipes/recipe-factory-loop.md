@@ -381,6 +381,89 @@ LR6. Done. User runs the factory again later to continue.
 **Quality impact:** lower verification rigor (one model writing AND judging),
 no parallel research breadth, no model-family diversity in audit.
 
+### Overnight Mode (externally-driven loop, v0.6.0+)
+
+Overnight Mode is NOT a separate execution mode of the recipe — it's
+single-session-mode-plus-Large-Repo-Mode invoked repeatedly by an external
+wrapper. Each cycle is one iteration; the wrapper respawns fresh Claude
+sessions to avoid context fragmentation.
+
+**The wrapper** (`bin/factory-overnight.sh`) handles:
+- Round-robin across multiple repos
+- Wall-clock end time (`--until 06:00`) or duration (`--duration 8h`)
+- Per-cycle hard timeout (default 30 min) so a hung cycle can't block forever
+- Cumulative cost cap (default $50) auto-distributed across remaining cycles
+- Convergence rotation: a repo that returns `cycle_outcome: no-op` for N
+  consecutive cycles gets retired from the rotation; when all repos retire,
+  the wrapper exits cleanly
+- Sentinel stop file (`~/.factory-overnight.stop`) for graceful interrupt
+- Status file (`~/.factory-overnight.status`) human-readable at any time
+- Per-cycle log + end-of-run summary in `~/.claude-octopus/logs/overnight/`
+
+**The `--overnight` flag** signals the recipe to run as one cycle:
+1. Forces Large-Repo Mode regardless of scale gate (so the cycle is finite)
+2. Runs exactly ONE iteration and exits — never multi-iteration in one call
+3. Disables stop-on-convergence within the cycle (the wrapper handles that
+   across cycles using the convergence-rotation counter)
+4. Disables Q3 release on routine cycles (commits + push only — release
+   requires explicit `--release` flag, scheduled by user)
+5. Writes `cycle_outcome` to `.factory/state.yaml` (one of: `advanced`,
+   `researched`, `no-op`) so the wrapper's rotation counter knows whether
+   to retire the repo
+6. Caps per-cycle implementation at 3 Now-tier tasks (LR Mode default) —
+   atomic per-task commits, push immediately, never batch
+
+**Cycle outcomes** the recipe writes to state.yaml:
+- `advanced` — at least one Now-tier task closed this cycle. Convergence
+  streak resets to 0.
+- `researched` — research surfaced new items but no implementation closed
+  (e.g. all open tasks blocked on dependencies). Convergence streak halves.
+- `no-op` — research found nothing new AND Now tier was already empty AND
+  no implementation possible. Convergence streak increments.
+
+**Typical overnight run shape** (single repo, 8 hours):
+- Cycle 1: full L1 research (Phase 0-5) on first invocation, ~30 min
+- Cycles 2-15: delta research + 1-3 Now tasks per cycle, ~25 min each
+- Cycles 16+: convergence usually triggers somewhere between cycle 8 and 20
+  depending on roadmap depth — wrapper retires the repo and exits
+
+**Multi-repo overnight** (round-robin):
+- Cycle 1 → repo A research + 3 tasks
+- Cycle 2 → repo B research + 3 tasks
+- Cycle 3 → repo C research + 3 tasks
+- Cycle 4 → back to repo A delta + 3 tasks
+- ...
+- When repo X reports `no-op` 3 cycles in a row, it's retired.
+- Wrapper exits when every repo is retired or wall-clock end is reached.
+
+**Pre-flight before launch:** run `bin/factory-doctor.sh` once. Then start
+the wrapper from a terminal that survives logout (tmux / screen / PowerShell
+window that won't close). The wrapper writes its own logs — you don't need
+to watch the terminal.
+
+**Invocation example:**
+```bash
+# 8 hours, two repos, $40 total budget, halt at 6am
+bash ~/repos/octopus-factory/bin/factory-overnight.sh \
+    ~/repos/Astra-Deck \
+    ~/repos/NovaCut \
+    --until 06:00 \
+    --max-spend-total 40
+```
+
+**Watching progress without logging in:**
+```bash
+bash ~/repos/octopus-factory/bin/factory-overnight.sh --status
+# or tail the live event log:
+tail -f ~/.claude-octopus/logs/overnight/<run-id>/overnight.log
+```
+
+**Halting cleanly mid-run:**
+```bash
+bash ~/repos/octopus-factory/bin/factory-overnight.sh --stop
+# wrapper will finish the current cycle, then exit
+```
+
 ### Mode flags
 
 | Flag | Effect |
@@ -388,6 +471,7 @@ no parallel research breadth, no model-family diversity in audit.
 | (auto-detect) | Default. Agent detects orchestrator availability on entry, picks the mode that fits. |
 | `--single-session` | Force single-session even if the orchestrator is available. Useful for cost-constrained runs or when other CLIs are rate-limited. |
 | `--require-orchestrator` | Refuse to run if the orchestrator isn't available; exit with diagnostic instead of degrading. Useful when you specifically want the recipe's full quality bar. |
+| `--overnight` | One cycle of an externally-driven overnight loop. See "Overnight Mode" section above. |
 
 ### Mode logging
 
@@ -899,6 +983,7 @@ Q4. Continuation brief appended to repo CLAUDE.md: current state / done this run
 | `--force-logo` | Run the G-phase even when an icon set is already present. Archives the existing set to `assets/icons/old-<timestamp>/` before regenerating. |
 | `--raster-logo` | Skip Path 1 (SVG-via-Copilot) and use Path 2 (`gpt-image-1`) directly. For photographic / complex-composition icons only. Requires `OPENAI_API_KEY`. |
 | `--final-codex-pass` | On the final iteration, run a direct-ChatGPT-Pro-Codex audit pass in addition to the Copilot audit. Release-day use only — burns ChatGPT Pro quota. |
+| `--overnight` | Run as one cycle of an externally-driven overnight loop (see `bin/factory-overnight.sh`). Forces Large-Repo Mode; runs exactly one iteration and exits cleanly with `cycle_outcome` written to state.yaml. Disables stop-on-convergence (research keeps expanding ROADMAP across cycles). Suppresses Q3 release on routine cycles unless `--release` is also set. |
 
 ## Future Work (documented, not yet implemented)
 

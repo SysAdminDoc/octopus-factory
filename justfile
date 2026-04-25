@@ -25,6 +25,11 @@ default:
 doctor *ARGS:
     @{{bin}}/factory-doctor.sh {{ARGS}}
 
+# Multi-hour overnight run across one or more repos (--until, --status, --stop).
+[group('preflight')]
+overnight *ARGS:
+    @{{bin}}/factory-overnight.sh {{ARGS}}
+
 # Show or swap the active routing preset. `just route` lists; `just route copilot-heavy` swaps.
 [group('preflight')]
 route *ARGS:
