@@ -254,7 +254,9 @@ class PromptBuilderWindow(QMainWindow):
         self._current_template_key: str | None = None
         self._rendering_preview = False
         self._preview_is_manual = False
+        self._pending_form_changes = False
         self._empty_required_fields: list[str] = []
+        self._form_warnings: list[str] = []
         self._settings = QSettings("octopus-factory", "Prompt Builder")
         self._copy_reset_timer = QTimer(self)
         self._copy_reset_timer.setSingleShot(True)
@@ -550,11 +552,25 @@ class PromptBuilderWindow(QMainWindow):
         self.form_title.setText(tpl.label)
         self.form_description.setText(tpl.description)
 
-        form = FormBuilder(tpl, on_change=self._regenerate)
+        form = FormBuilder(tpl, on_change=self._on_form_changed)
         self._current_form = form
         self.form_scroll.setWidget(form.container)
         self._regenerate()
         self.statusBar().showMessage(f"Configuring: {tpl.label}")
+
+    def _on_form_changed(self):
+        if self._preview_is_manual:
+            self._pending_form_changes = True
+            if self._current_template_key:
+                self._refresh_form_diagnostics(TEMPLATES[self._current_template_key])
+            self._update_preview_state()
+            self._update_form_hint()
+            self.statusBar().showMessage(
+                "Form changed. Manual preview edits are preserved until Regenerate.",
+                4000,
+            )
+            return
+        self._regenerate()
 
     def _regenerate(self):
         if not self._current_form or not self._current_template_key:
@@ -564,10 +580,11 @@ class PromptBuilderWindow(QMainWindow):
             text = tpl.render(self._current_form.values())
         except Exception as exc:
             text = f"# Render error: {exc}"
-        self._empty_required_fields = self._required_empty_fields(tpl)
+        self._refresh_form_diagnostics(tpl)
         # Preserve cursor position when re-rendering
         cursor_pos = self.preview.textCursor().position()
         self._preview_is_manual = False
+        self._pending_form_changes = False
         self._rendering_preview = True
         self.preview.setPlainText(text)
         self._rendering_preview = False
@@ -577,6 +594,10 @@ class PromptBuilderWindow(QMainWindow):
         self._update_count()
         self._update_preview_state()
         self._update_form_hint()
+
+    def _refresh_form_diagnostics(self, tpl: Template):
+        self._empty_required_fields = self._required_empty_fields(tpl)
+        self._form_warnings = self._form_warnings_for(tpl)
 
     def _required_empty_fields(self, tpl: Template) -> list[str]:
         if not self._current_form:
@@ -590,6 +611,52 @@ class PromptBuilderWindow(QMainWindow):
                 if not str(values.get(field.key, "")).strip():
                     missing.append(field.label)
         return missing
+
+    def _form_warnings_for(self, tpl: Template) -> list[str]:
+        if not self._current_form:
+            return []
+
+        values = self._current_form.values()
+        warnings: list[str] = []
+        directory_keys = {"repo", "repos", "auto_discover"}
+        pdf_keys = {"pdf_path", "source_pdf"}
+
+        for field in tpl.fields:
+            raw_value = str(values.get(field.key, "")).strip()
+            if not raw_value:
+                continue
+
+            if field.key in directory_keys:
+                paths = (
+                    [line.strip() for line in raw_value.splitlines() if line.strip()]
+                    if field.kind == "paths"
+                    else [raw_value]
+                )
+                for item in paths:
+                    path = Path(item).expanduser()
+                    if not path.exists():
+                        warnings.append(f"{field.label}: path not found")
+                    elif not path.is_dir():
+                        warnings.append(f"{field.label}: not a directory")
+                    elif (
+                        field.key in {"repo", "repos"}
+                        and not (path / ".git").exists()
+                    ):
+                        warnings.append(f"{field.label}: no .git metadata")
+
+            if field.key in pdf_keys:
+                path = Path(raw_value).expanduser()
+                if not path.exists():
+                    warnings.append(f"{field.label}: file not found")
+                elif not path.is_file():
+                    warnings.append(f"{field.label}: not a file")
+                elif path.suffix.lower() != ".pdf":
+                    warnings.append(f"{field.label}: expected a .pdf file")
+
+        if tpl.key == "ai_scrub" and values.get("mode") in {"apply", "push"}:
+            warnings.append("AI Scrub apply/push rewrites history; dry-run first")
+
+        return warnings[:3]
 
     # ─── Actions ───
 
@@ -642,8 +709,10 @@ class PromptBuilderWindow(QMainWindow):
     def _on_preview_text_changed(self):
         if not self._rendering_preview:
             self._preview_is_manual = True
+            self._pending_form_changes = False
         self._update_count()
         self._update_preview_state()
+        self._update_form_hint()
 
     def _toggle_preview_wrap(self, enabled: bool):
         mode = (
@@ -665,16 +734,26 @@ class PromptBuilderWindow(QMainWindow):
         self.count_label.setText(f"{lines} lines · {len(text)} chars")
 
     def _update_preview_state(self):
-        if self._preview_is_manual:
+        if self._preview_is_manual and self._pending_form_changes:
+            self.preview_state.setText("Unsynced")
+            self.preview_state.setProperty("tone", "warning")
+            self.preview_state.setToolTip(
+                "Manual preview edits are preserved. Regenerate rebuilds from the form."
+            )
+        elif self._preview_is_manual:
             self.preview_state.setText("Edited")
             self.preview_state.setProperty("tone", "warning")
             self.preview_state.setToolTip(
-                "Manual edits will be replaced when a form field changes or Reset is used."
+                "Copy uses the edited preview. Regenerate restores generated text."
             )
         elif self._empty_required_fields:
             self.preview_state.setText("Needs paths")
             self.preview_state.setProperty("tone", "warning")
             self.preview_state.setToolTip("Some path fields are still placeholders.")
+        elif self._form_warnings:
+            self.preview_state.setText("Review")
+            self.preview_state.setProperty("tone", "warning")
+            self.preview_state.setToolTip("Review warnings before copying.")
         else:
             self.preview_state.setText("Live preview")
             self.preview_state.setProperty("tone", "ok")
@@ -683,10 +762,28 @@ class PromptBuilderWindow(QMainWindow):
         self.preview_state.style().polish(self.preview_state)
 
     def _update_form_hint(self):
-        if self._empty_required_fields:
+        if self._preview_is_manual and self._pending_form_changes:
+            self.form_hint.setText(
+                "Manual preview edits are preserved while form changes wait. "
+                "Copy uses the edited text; Regenerate rebuilds from the form."
+            )
+            self.form_hint.setProperty("tone", "warning")
+        elif self._preview_is_manual:
+            self.form_hint.setText(
+                "Manual preview edits are active. Copy uses the edited text; "
+                "Regenerate discards edits and rebuilds from the form."
+            )
+            self.form_hint.setProperty("tone", "warning")
+        elif self._empty_required_fields:
             fields = ", ".join(self._empty_required_fields)
             self.form_hint.setText(
                 f"Placeholder output is active until these fields are filled: {fields}."
+            )
+            self.form_hint.setProperty("tone", "warning")
+        elif self._form_warnings:
+            warnings = "; ".join(self._form_warnings)
+            self.form_hint.setText(
+                f"Review before copying: {warnings}."
             )
             self.form_hint.setProperty("tone", "warning")
         else:
