@@ -13,6 +13,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 - `config/presets/overlays/_base.json` + per-mode overlays — DRY source of truth for the 6 routing presets. Shared fields (provider catalog, tiers, `_tier_semantics`) live in `_base.json`; per-mode routing tables + descriptive metadata live in `overlays/<mode>.json`. Edit shared fields once, rebuild every preset.
 - `config/presets/build.sh` — generates `presets/<mode>.json` from base + overlay via `jq -S -s '.[0] * .[1]'` (deep merge). Also `--verify` mode that diffs source against committed presets and exits non-zero on drift — wire into pre-commit / CI.
 - `just preset-build` / `just preset-verify` recipes.
+- `.githooks/pre-commit` — repo-local git hook that runs `preset-verify` whenever any `config/presets/` file (preset, overlay, or build script) is staged. Blocks commits where a generated preset has drifted from its source, with a message naming the offending file and the fix (`just preset-build && git add config/presets/`). `--no-verify` bypass available for intentional skips.
+- `just hooks-install` / `just hooks-uninstall` — set/unset `core.hooksPath = .githooks`.
+- `docs/CONTRIBUTING.md` gains a **First-time setup** section pointing at `just hooks-install`, and an **Editing routing presets** section documenting the overlay workflow.
 
 ### Changed
 - Routing presets `claude-heavy`, `codex-heavy`, `copilot-only`, `direct-only` now include `providers.codex.image: "gpt-image-1"` in their provider catalog (was previously only in `balanced` + `copilot-heavy`). Semantically a no-op since image-routing decisions live in `routing.roles.image`, not the catalog — but consistent with the other two presets and matches what `_base.json` defines. Catalog drift fixed by build pipeline.

@@ -8,11 +8,37 @@ Thanks for considering a contribution. Quick guidelines below; see `ARCHITECTURE
 - **`memory/directives/`** — phase-specific behavior loaded lazily
 - **`memory/reference/`** — non-recipe reference docs
 - **`bin/`** — executable shell scripts
-- **`config/presets/`** — provider routing presets (JSON)
+- **`config/presets/`** — provider routing presets (JSON, **generated** — see below)
+- **`config/presets/overlays/`** — source of truth: `_base.json` + per-mode overlays
 - **`config/workflows/`** — YAML workflow bridges
 - **`prompts/`** — copy-paste-ready prompts users send to Claude
 - **`patches/`** — find/replace patches for the upstream Claude Octopus plugin
 - **`docs/`** — architecture + contribution + execution-mode docs
+- **`.githooks/`** — repo-local git hooks (activate with `just hooks-install`)
+- **`justfile`** — discoverable task runner; `just` lists every recipe
+
+## First-time setup
+
+Once after cloning:
+
+```bash
+just hooks-install        # activates pre-commit (preset drift check, etc.)
+```
+
+The pre-commit hook fails if any committed `config/presets/<mode>.json` has drifted from its source (`overlays/_base.json` + `overlays/<mode>.json`). To intentionally bypass, commit with `--no-verify`.
+
+## Editing routing presets
+
+Don't hand-edit `config/presets/<mode>.json` — those are generated. Instead:
+
+```bash
+$EDITOR config/presets/overlays/_base.json         # change shared fields (provider catalog, tiers)
+$EDITOR config/presets/overlays/<mode>.json        # change a single mode's routing
+just preset-build                                  # regenerate presets/<mode>.json
+git add config/presets/                            # stage source + generated together
+```
+
+`just preset-verify` is what the pre-commit hook runs; you can run it yourself any time.
 
 ## What to keep in mind
 

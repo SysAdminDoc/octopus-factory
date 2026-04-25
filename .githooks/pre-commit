@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# pre-commit — repo-local git hook.
+#
+# Activate once with:
+#   just hooks-install        (or:  git config core.hooksPath .githooks)
+#
+# Checks performed (each only runs if its target files are staged):
+#   1. Routing presets — verify every config/presets/<mode>.json still matches
+#      its source (overlays/_base.json + overlays/<mode>.json). Fails the commit
+#      if a generated artifact has been hand-edited.
+#
+# Add additional checks below as needed.
+
+set -uo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+fail=0
+
+# ─── 1. Preset drift ─────────────────────────────────────────────────────────
+staged_preset_files=$(git diff --cached --name-only --diff-filter=ACM \
+    | grep -E '^config/presets/(([^/]+\.json)|overlays/.+\.json|build\.sh)$' || true)
+
+if [[ -n "$staged_preset_files" ]]; then
+    echo "pre-commit: routing-preset files staged — verifying drift..."
+    if ! "${REPO_ROOT}/config/presets/build.sh" --verify; then
+        cat >&2 <<'EOF'
+
+✗ pre-commit: a committed config/presets/<mode>.json has drifted from its source.
+
+The presets/<mode>.json files are GENERATED ARTIFACTS. Edit the source instead:
+  - shared fields → config/presets/overlays/_base.json
+  - per-mode fields → config/presets/overlays/<mode>.json
+
+Then rebuild + re-stage:
+  just preset-build && git add config/presets/
+
+To bypass this check (only when intentional), commit with:
+  git commit --no-verify
+
+EOF
+        fail=1
+    fi
+fi
+
+exit $fail

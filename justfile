@@ -108,6 +108,19 @@ preset-build *ARGS:
 preset-verify:
     @./config/presets/build.sh --verify
 
+# Activate the repo-local git hooks (sets core.hooksPath = .githooks).
+[group('dev')]
+hooks-install:
+    @git config core.hooksPath .githooks
+    @echo "✓ core.hooksPath → .githooks"
+    @ls .githooks | sed 's/^/  /'
+
+# Deactivate the repo-local git hooks (resets core.hooksPath).
+[group('dev')]
+hooks-uninstall:
+    @git config --unset core.hooksPath || true
+    @echo "✓ core.hooksPath unset (back to .git/hooks)"
+
 # Run promptfoo regression tests over the prompt suite.
 [group('dev')]
 test:
