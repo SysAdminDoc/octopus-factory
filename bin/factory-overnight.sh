@@ -71,6 +71,18 @@
 #   ~/.factory-overnight.lock       exists while a session is active
 #   ~/.factory-overnight.stop       touch this to halt at next cycle boundary
 #   ~/.factory-overnight.status     human-readable status (auto-updated)
+#
+# bats-skip-syntax-check: requires-bash-4
+#   Uses `declare -A` (associative arrays) which is bash 4.0+. The bats
+#   syntax-check suite honors this marker and skips the file when it's
+#   running under bash <4 (notably macOS's stock /bin/bash 3.2). The
+#   runtime guard below prevents accidental execution on bash <4.
+
+if (( BASH_VERSINFO[0] < 4 )); then
+    echo "factory-overnight.sh: requires bash 4+ (have bash ${BASH_VERSION})." >&2
+    echo "  macOS users: brew install bash, then re-run with /opt/homebrew/bin/bash $0 ..." >&2
+    exit 1
+fi
 
 set -uo pipefail
 
