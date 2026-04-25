@@ -42,4 +42,32 @@ EOF
     fi
 fi
 
+# ─── 2. Directive + recipe frontmatter ───────────────────────────────────────
+staged_memory_md=$(git diff --cached --name-only --diff-filter=ACM \
+    | grep -E '^memory/(directives|recipes)/.+\.md$' || true)
+
+if [[ -n "$staged_memory_md" ]]; then
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "pre-commit: python3 not found — skipping directive lint" >&2
+    else
+        echo "pre-commit: directive/recipe frontmatter staged — linting..."
+        # Pass the staged paths so we lint exactly what's about to land,
+        # not the full memory/ tree (faster + scopes failures to the diff).
+        if ! python3 "${REPO_ROOT}/bin/lint-directives.py" $staged_memory_md; then
+            cat >&2 <<'EOF'
+
+✗ pre-commit: directive/recipe frontmatter failed validation.
+
+Required fields: name, description, type (one of: knowledge, reference).
+Directives (memory/directives/) additionally need non-empty triggers + agents arrays.
+
+See bin/lint-directives.py --help for the full schema.
+Bypass intentionally with: git commit --no-verify
+
+EOF
+            fail=1
+        fi
+    fi
+fi
+
 exit $fail

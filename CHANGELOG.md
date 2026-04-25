@@ -20,6 +20,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 - `just test-bats` recipe (passes flags through — `just test-bats --tap` for CI output).
 - `.github/workflows/ci.yml` — GitHub Actions matrix (Ubuntu / macOS / Windows Git Bash) running on every push to `main` + every PR. Steps: install just (extractions/setup-just) + bats (bats-core/bats-action) → `just preset-verify` → `just test-bats --tap`. CI badge added to README.
 - `docs/CONTRIBUTING.md` gains a **Testing** section with local commands + CI link.
+- `bin/lint-directives.py` — stdlib-only validator (no PyYAML, no jsonschema) for YAML frontmatter on every `memory/directives/*.md` + `memory/recipes/*.md`. Schema: `name` / `description` / `type ∈ {knowledge, reference}` required everywhere; directives additionally need non-empty `triggers` + `agents` arrays. Detects: missing fence, missing fields, wrong enum value, empty array, malformed key:value lines, duplicate keys. Closes the "malformed directive frontmatter silently fails the lazy loader" gap explicitly flagged in the v0.5.1 architecture review. UTF-8 output forced so the ✓/✗ lines render on Windows cp1252 consoles.
+- `just lint-directives` recipe (passes flags through; `just lint-directives memory/directives/` to scope).
+- `tests/bats/directives.bats` — 7 tests wrapping the linter (clean tree, --help, missing fence, missing type, wrong enum, empty triggers, recipes don't require triggers/agents).
+- `.githooks/pre-commit` gains a second branch: lints staged `memory/(directives|recipes)/*.md` files. Skips with a warning if `python3` is missing.
+- `.github/workflows/ci.yml` runs `just lint-directives` on every push + PR alongside preset-verify and the bats suite.
 
 ### Changed
 - Routing presets `claude-heavy`, `codex-heavy`, `copilot-only`, `direct-only` now include `providers.codex.image: "gpt-image-1"` in their provider catalog (was previously only in `balanced` + `copilot-heavy`). Semantically a no-op since image-routing decisions live in `routing.roles.image`, not the catalog — but consistent with the other two presets and matches what `_base.json` defines. Catalog drift fixed by build pipeline.

@@ -131,6 +131,11 @@ test:
 test-bats *ARGS:
     @bats tests/bats/ {{ARGS}}
 
+# Validate YAML frontmatter on every directive + recipe.
+[group('dev')]
+lint-directives *ARGS:
+    @python3 bin/lint-directives.py {{ARGS}}
+
 # Lint all bash scripts with shellcheck (skips if shellcheck not installed).
 [group('dev')]
 lint:

@@ -56,6 +56,22 @@ The same suite runs in GitHub Actions on every push + PR across Ubuntu / macOS /
 
 When adding new bash scripts under `bin/` or new presets, the existing tests will cover them automatically (the bash-syntax pass + JSON-validity pass iterate over the directories). Add focused `@test` blocks in the relevant `.bats` file when introducing a new behavior worth gating on.
 
+## Authoring directives + recipes
+
+Every file under `memory/directives/` and `memory/recipes/` must start with a YAML frontmatter block. Required fields:
+
+```markdown
+---
+name: Human-Readable Title
+description: One paragraph. What this is, when it loads, what it covers.
+type: knowledge          # or "reference"
+triggers: [keyword, phrase, ...]   # directives only — phrases that lazy-load this directive
+agents: [role, ...]                # directives only — which agent roles consume it
+---
+```
+
+Run `just lint-directives` (also wired into the pre-commit hook + CI) to validate. The linter catches malformed fences, missing/wrong-typed fields, and invalid `type` enum values. See `bin/lint-directives.py --help` for the full schema.
+
 ## What to keep in mind
 
 ### Recipes are the source of truth

@@ -51,5 +51,8 @@ jobs:
       - name: Verify routing presets (no drift between source and committed)
         run: just preset-verify
 
+      - name: Lint directive + recipe frontmatter
+        run: just lint-directives
+
       - name: Run bats-core test suite
         run: just test-bats --tap
