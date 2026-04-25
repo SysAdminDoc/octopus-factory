@@ -39,6 +39,44 @@ _ensure_shadow() {
     fi
 }
 
+_require_label() {
+    local label="$1"
+    local value="$2"
+    if [[ ! "$value" =~ ^[A-Za-z0-9._-]+$ ]]; then
+        echo "checkpoint: ${label} may contain only letters, numbers, dot, underscore, and hyphen" >&2
+        return 1
+    fi
+}
+
+_require_non_negative_integer() {
+    local label="$1"
+    local value="$2"
+    if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+        echo "checkpoint: ${label} must be a non-negative integer" >&2
+        return 1
+    fi
+}
+
+_snapshot_suffix() {
+    local phase="$1"
+    local iter="$2"
+    printf -- '-%s-%s' "$phase" "$iter"
+}
+
+_latest_snapshot_sha() {
+    local phase="$1"
+    local iter="$2"
+    local suffix
+    suffix="$(_snapshot_suffix "$phase" "$iter")"
+
+    while IFS=$'\t' read -r sha subject; do
+        if [[ "$subject" == factory-* && "$subject" == *"$suffix" ]]; then
+            printf '%s\n' "$sha"
+            return 0
+        fi
+    done < <(git "${SHADOW_GIT_ENV[@]}" log --format='%H%x09%s' 2>/dev/null)
+}
+
 # Rename nested .git directories to .git_disabled before `git add`
 # (ported detail from Cline: avoids submodule errors when shadow scans subdirs)
 _disable_nested_gits() {
@@ -89,6 +127,8 @@ cmd_init() {
 cmd_snapshot() {
     local phase="${1:?usage: snapshot <phase> [<iter>]}"
     local iter="${2:-0}"
+    _require_label "phase" "$phase"
+    _require_label "iter" "$iter"
     _ensure_shadow
 
     _disable_nested_gits
@@ -107,10 +147,11 @@ cmd_snapshot() {
 cmd_diff() {
     local phase="${1:?usage: diff <phase> [<iter>]}"
     local iter="${2:-0}"
+    _require_label "phase" "$phase"
+    _require_label "iter" "$iter"
     _ensure_shadow
-    local msg_pattern="factory-.*-${phase}-${iter}"
     local sha
-    sha=$(git "${SHADOW_GIT_ENV[@]}" log --grep="$msg_pattern" --format='%H' -1)
+    sha="$(_latest_snapshot_sha "$phase" "$iter")"
     if [[ -z "$sha" ]]; then
         echo "no snapshot matching ${phase}/${iter}" >&2
         return 1
@@ -121,10 +162,11 @@ cmd_diff() {
 cmd_rollback() {
     local phase="${1:?usage: rollback <phase> [<iter>]}"
     local iter="${2:-0}"
+    _require_label "phase" "$phase"
+    _require_label "iter" "$iter"
     _ensure_shadow
-    local msg_pattern="factory-.*-${phase}-${iter}"
     local sha
-    sha=$(git "${SHADOW_GIT_ENV[@]}" log --grep="$msg_pattern" --format='%H' -1)
+    sha="$(_latest_snapshot_sha "$phase" "$iter")"
     if [[ -z "$sha" ]]; then
         echo "no snapshot matching ${phase}/${iter}" >&2
         return 1
@@ -146,9 +188,8 @@ cmd_list() {
 
 cmd_gc() {
     local days="${1:-30}"
+    _require_non_negative_integer "days" "$days"
     _ensure_shadow
-    local cutoff
-    cutoff=$(date -d "${days} days ago" +%s 2>/dev/null || date -v-"${days}d" +%s 2>/dev/null || echo 0)
     git "${SHADOW_GIT_ENV[@]}" gc --prune="${days}.days.ago" --aggressive --quiet
     echo "gc: pruned snapshots older than ${days} days"
 }
