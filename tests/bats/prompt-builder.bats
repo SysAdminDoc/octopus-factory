@@ -38,6 +38,8 @@ assert window.template_list.itemDelegate() is not None
 assert window.template_list.horizontalScrollBarPolicy() == Qt.ScrollBarPolicy.ScrollBarAlwaysOff
 window.search_edit.setText("pdf")
 assert "found" in window.nav_count_label.text()
+assert window.preview_notice.text()
+assert window.copy_btn.property("tone") in {"ready", "warning"}
 
 fields = TEMPLATES["pdf_redesign"].fields
 assert window._is_required_field(fields[0])
@@ -47,6 +49,15 @@ form = FormBuilder(TEMPLATES["pdf_redesign"], lambda: None)
 form.apply_field_states({"pdf_path": ("required", "Choose a PDF.")})
 assert form._diagnostics["pdf_path"].text() == "Choose a PDF."
 assert not form._diagnostics["pdf_path"].isHidden()
+
+window.preview.setPlainText(window.preview.toPlainText() + "\nmanual note")
+assert window.preview_state.text() == "Edited"
+assert window.preview_notice.property("tone") == "warning"
+assert window.copy_btn.property("tone") == "warning"
+assert window.regenerate_btn.text() == "Rebuild"
+window.preview.clear()
+assert not window.copy_btn.isEnabled()
+assert not window.save_btn.isEnabled()
 window.close()
 PY
     [ "$status" -eq 0 ]

@@ -446,6 +446,9 @@ class PromptBuilderWindow(QMainWindow):
         self._copy_reset_timer = QTimer(self)
         self._copy_reset_timer.setSingleShot(True)
         self._copy_reset_timer.timeout.connect(self._restore_copy_button)
+        self._save_reset_timer = QTimer(self)
+        self._save_reset_timer.setSingleShot(True)
+        self._save_reset_timer.timeout.connect(self._restore_save_button)
         self._build_ui()
         self._restore_ui_state()
 
@@ -569,6 +572,13 @@ class PromptBuilderWindow(QMainWindow):
         self.preview_state = QLabel("Live preview")
         self.preview_state.setObjectName("status_pill")
 
+        self.preview_notice = QLabel("")
+        self.preview_notice.setObjectName("preview_notice")
+        self.preview_notice.setWordWrap(True)
+        self.preview_notice.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+
         self.preview = QPlainTextEdit()
         self.preview.setObjectName("preview")
         self.preview.setReadOnly(False)  # let user tweak before copy
@@ -634,6 +644,7 @@ class PromptBuilderWindow(QMainWindow):
         preview_header_row.addStretch(1)
         preview_header_row.addWidget(self.preview_state)
         preview_layout.addLayout(preview_header_row)
+        preview_layout.addWidget(self.preview_notice)
         preview_layout.addWidget(self.preview, 1)
         preview_layout.addLayout(preview_meta_row)
         preview_layout.addLayout(button_row)
@@ -1004,6 +1015,8 @@ class PromptBuilderWindow(QMainWindow):
             try:
                 Path(path).write_text(text, encoding="utf-8")
                 self._settings.setValue("files/lastSaveDir", str(Path(path).parent))
+                self.save_btn.setText("Saved")
+                self._save_reset_timer.start(1600)
                 self.statusBar().showMessage(f"Saved to {path}", 5000)
             except OSError as exc:
                 self.statusBar().showMessage(f"Save failed: {exc}", 6000)
@@ -1037,12 +1050,20 @@ class PromptBuilderWindow(QMainWindow):
     def _restore_copy_button(self):
         self.copy_btn.setText("Copy")
 
+    def _restore_save_button(self):
+        self.save_btn.setText("Save…")
+
     def _update_count(self):
         text = self.preview.toPlainText()
         lines = text.count("\n") + (1 if text else 0)
         self.count_label.setText(f"{lines} lines · {len(text)} chars")
 
     def _update_preview_state(self):
+        self._copy_reset_timer.stop()
+        self._save_reset_timer.stop()
+        self._restore_copy_button()
+        self._restore_save_button()
+
         if self._preview_is_manual and self._pending_form_changes:
             self.preview_state.setText("Unsynced")
             self.preview_state.setProperty("tone", "warning")
@@ -1069,6 +1090,82 @@ class PromptBuilderWindow(QMainWindow):
             self.preview_state.setToolTip("Preview updates automatically as fields change.")
         self.preview_state.style().unpolish(self.preview_state)
         self.preview_state.style().polish(self.preview_state)
+        self._update_preview_notice()
+        self._update_action_states()
+
+    def _update_preview_notice(self):
+        if self._preview_is_manual and self._pending_form_changes:
+            text = (
+                "Form changes are waiting. Copy and Save use the edited preview; "
+                "Regenerate rebuilds from the current form values."
+            )
+            tone = "warning"
+        elif self._preview_is_manual:
+            text = (
+                "Manual edits are active. Copy and Save use exactly what is shown here."
+            )
+            tone = "warning"
+        elif self._empty_required_fields:
+            fields = ", ".join(self._empty_required_fields)
+            text = f"Placeholder output is active until required fields are filled: {fields}."
+            tone = "warning"
+        elif self._form_warnings:
+            text = f"Review before using this prompt: {'; '.join(self._form_warnings)}."
+            tone = "warning"
+        else:
+            text = "Ready to copy or save. The preview updates automatically from the form."
+            tone = "ok"
+
+        self.preview_notice.setText(text)
+        self.preview_notice.setProperty("tone", tone)
+        self.preview_notice.style().unpolish(self.preview_notice)
+        self.preview_notice.style().polish(self.preview_notice)
+
+    def _update_action_states(self):
+        has_text = bool(self.preview.toPlainText().strip())
+        warning = bool(
+            self._empty_required_fields
+            or self._form_warnings
+            or self._preview_is_manual
+            or self._pending_form_changes
+        )
+        copy_tone = "warning" if warning else "ready"
+        secondary_tone = "warning" if warning else ""
+
+        self.copy_btn.setEnabled(has_text)
+        self.save_btn.setEnabled(has_text)
+        self.copy_btn.setProperty("tone", copy_tone)
+        self.save_btn.setProperty("tone", secondary_tone)
+        self.regenerate_btn.setProperty("tone", secondary_tone)
+
+        if self._preview_is_manual:
+            self.regenerate_btn.setText("Rebuild")
+            self.regenerate_btn.setToolTip(
+                "Discard manual preview edits and rebuild from the current form values."
+            )
+        else:
+            self.regenerate_btn.setText("Regenerate")
+            self.regenerate_btn.setToolTip(
+                "Restore the preview from the current form values."
+            )
+
+        if has_text and warning:
+            self.copy_btn.setToolTip(
+                "Copy the current preview. Review the readiness notice first."
+            )
+            self.save_btn.setToolTip(
+                "Save the current preview. Review the readiness notice first."
+            )
+        elif has_text:
+            self.copy_btn.setToolTip("Copy the current preview to the clipboard.")
+            self.save_btn.setToolTip("Save the current preview as a text file.")
+        else:
+            self.copy_btn.setToolTip("Generate a prompt before copying.")
+            self.save_btn.setToolTip("Generate a prompt before saving.")
+
+        for widget in (self.copy_btn, self.save_btn, self.regenerate_btn):
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
 
     def _update_form_hint(self):
         if self._preview_is_manual and self._pending_form_changes:

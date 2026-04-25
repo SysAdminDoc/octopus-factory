@@ -211,6 +211,27 @@ QLabel#inline_notice[tone="ok"] {{
     color: {TEAL};
 }}
 
+QLabel#preview_notice {{
+    background-color: rgba(49, 50, 68, 0.46);
+    border: 1px solid {SURFACE_0};
+    border-radius: 8px;
+    color: {SUBTEXT_1};
+    font-size: 9pt;
+    padding: 8px 10px;
+}}
+
+QLabel#preview_notice[tone="warning"] {{
+    background-color: rgba(249, 226, 175, 0.09);
+    border-color: rgba(249, 226, 175, 0.36);
+    color: {YELLOW};
+}}
+
+QLabel#preview_notice[tone="ok"] {{
+    background-color: rgba(166, 227, 161, 0.08);
+    border-color: rgba(166, 227, 161, 0.30);
+    color: {GREEN};
+}}
+
 QLabel#status_pill {{
     background-color: {SURFACE_0};
     border: 1px solid {SURFACE_1};
@@ -339,6 +360,12 @@ QPushButton:focus {{
     border: 1px solid {LAVENDER};
 }}
 
+QPushButton:disabled {{
+    background-color: {MANTLE};
+    border-color: {SURFACE_0};
+    color: {OVERLAY_0};
+}}
+
 QPushButton#secondary {{
     background-color: {MANTLE};
     color: {SUBTEXT_1};
@@ -349,11 +376,39 @@ QPushButton#secondary:hover {{
     color: {TEXT};
 }}
 
+QPushButton#secondary[tone="warning"] {{
+    border-color: rgba(249, 226, 175, 0.42);
+    color: {YELLOW};
+}}
+
+QPushButton#secondary[tone="warning"]:hover {{
+    border-color: rgba(249, 226, 175, 0.70);
+    color: {YELLOW};
+}}
+
 QPushButton#primary {{
     background-color: {LAVENDER};
     color: {CRUST};
     border: 1px solid {LAVENDER};
     font-weight: 750;
+}}
+
+QPushButton#primary[tone="warning"] {{
+    background-color: {YELLOW};
+    border-color: {YELLOW};
+    color: {CRUST};
+}}
+
+QPushButton#primary[tone="warning"]:hover {{
+    background-color: {PEACH};
+    border-color: {PEACH};
+    color: {CRUST};
+}}
+
+QPushButton#primary[tone="ready"] {{
+    background-color: {LAVENDER};
+    border-color: {LAVENDER};
+    color: {CRUST};
 }}
 
 QPushButton#primary:hover {{
