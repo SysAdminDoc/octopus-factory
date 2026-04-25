@@ -34,6 +34,11 @@ jobs:
 
       - name: Install bats-core
         uses: bats-core/bats-action@3.0.0
+        with:
+          # Pin so the action skips the unauthenticated GitHub-API call to find
+          # "latest" — that call rate-limits on shared CI runners (HTTP 403)
+          # and turned macOS jobs flaky.
+          bats-version: 1.13.0
 
       - name: Verify environment
         run: |
