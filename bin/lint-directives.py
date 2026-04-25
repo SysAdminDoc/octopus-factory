@@ -181,7 +181,13 @@ def main(argv: list[str]) -> int:
 
     failed = 0
     for f in files:
-        rel = os.path.relpath(f, REPO_ROOT)
+        # On Windows, relpath raises ValueError when f and REPO_ROOT live on
+        # different drive letters (e.g. CI runner: repo on D:, tempfile on C:).
+        # Fall back to the absolute path in that case.
+        try:
+            rel = os.path.relpath(f, REPO_ROOT)
+        except ValueError:
+            rel = str(f)
         errors = validate(f)
         if errors:
             failed += 1
