@@ -195,26 +195,61 @@ If any fails, fall through to single-session mode.
 - Phase quality gates fire before agents complete (synchronization issue) — useful artifacts still land in `~/.claude-octopus/results/` but the orchestrator may declare "quality gate did not pass" prematurely. Inspect artifacts directly rather than trusting the gate verdict.
 - Gemini CLI returned empty output for one test prompt — root cause unclear; may be argument-passing, model selection, or transient API. Codex + Claude + Copilot are reliable; Gemini is a "best effort" provider until investigated.
 
-### Single-Session Mode (degraded fallback)
+### Single-Session Mode (Codex-augmented in v0.5.1+)
 
-One Claude context executes every phase serially. Necessary degradations are
-declared upfront and logged to session log + continuation brief. Honest
-fallback beats pretending to run the orchestrated version.
+One Claude context drives the recipe, BUT external CLIs (codex, gemini,
+copilot) remain reachable via direct shell-out — they don't depend on
+orchestrate.sh. Single-session mode is "single coordinator with diverse
+audit signal," not "one model does everything."
 
-**Phase substitutions:**
+In v0.5.0 and earlier, single-session collapsed L3/U1/T1 down to Claude-only
+because there was no path from the master session to the codex CLI without
+the orchestrator. **In v0.5.1+, the recipe shells out to `bin/codex-direct.sh`**
+which invokes `codex exec --model gpt-5.4 --sandbox read-only` directly.
+That restores model-family diversity in the audit phases without needing
+orchestrate.sh to work.
 
-| Phase | Orchestrated | Single-session |
+**Phase substitutions (v0.5.1+):**
+
+| Phase | Orchestrated | Single-session (current) |
 |---|---|---|
-| P3a / L1a research | Gemini broad scan | Claude does the research (no Gemini context separation; note in log) |
-| P3b / L1b augment | Claude on fresh context | Same Claude context as research (no separation) |
-| L3 audit (Critic) | Codex with rubric | Claude with rubric (no model-family diversity; note in log) |
-| L4 counter-audit (Defender) | Claude, different family from L3 | **SKIPPED** — same-model duplication has no signal value. L3 findings stand. |
-| U1 UX polish first pass | Codex | Claude does it |
-| U2 UX counter-pass | Claude | **SKIPPED** — same-model duplication |
-| T1 theming first pass | Codex | Claude does it |
-| T2 theming counter-pass | Claude | **SKIPPED** — same-model duplication |
-| Three-role debate (full L3/L4) | Grader + Critic + Defender (heterogeneous) | Falls back to single-pass rubric check by Claude (Grader-only). No debate. |
-| P5 / G-phase logo | Copilot-SVG (Path 1) → codex `gpt-image-1` → gemini fallback | Copilot-SVG still works (it just shells out to `copilot --no-ask-user`) — single-session mode only loses the parallel fan-out. Paths 2/3 remain available if keys are present; otherwise write a logo brief to `assets/logo-prompt.md` and defer. |
+| P3a / L1a research breadth | Gemini broad scan | `gemini` CLI shell-out (still works in single-session — gemini CLI doesn't depend on orchestrate.sh) |
+| P3b / L1b augment / synth | Copilot-Sonnet on fresh context | `copilot` CLI shell-out OR master Claude session (depending on copilot-fallback.sh availability) |
+| **L3 audit (Critic)** | **Codex with rubric (parallel)** | **`bin/codex-direct.sh audit` — direct codex exec** (model-family diversity preserved) |
+| **L4 counter-audit (Defender)** | Claude, different family from L3 | **Master Claude session** — different family from Codex L3, so the cross-family check holds even in single-session |
+| **Three-role debate (full L3/L4)** | Grader + Critic + Defender (heterogeneous, parallel) | Sequential: Grader (Copilot Haiku via `copilot-fallback.sh`) → Critic (`codex-direct.sh audit`) → Defender (master Claude). All three families present, just sequential not parallel. |
+| **U1 UX polish first pass** | Codex | **`bin/codex-direct.sh ux` — direct codex exec** |
+| **U2 UX counter-pass** | Claude | Master Claude session (different family than U1's codex output) |
+| **T1 theming first pass** | Codex | **`bin/codex-direct.sh theming` — direct codex exec** |
+| **T2 theming counter-pass** | Claude | Master Claude session (different family than T1) |
+| **Q1 security audit** | Codex (`/octo:security`) | **`bin/codex-direct.sh security` — direct codex exec** |
+| **Q2 review** | Codex (`/octo:review`) | **`bin/codex-direct.sh review` — direct codex exec** |
+| **Phase 5 of directive-roadmap-research.md (self-audit)** | Copilot-codex (different family than Phases 2-4) | **`bin/codex-direct.sh self-audit` — direct codex exec** (preserves cross-family review) |
+| P5 / G-phase logo | Path 1 SVG-via-Copilot → Path 2 codex:image → Path 3 gemini:image | Same paths still work — Copilot CLI shell-out doesn't depend on orchestrate.sh either |
+
+**What's still degraded:**
+- L3 + L4 are SEQUENTIAL not parallel. Adaptive-stopping debate works (the Beta-Binomial math runs the same), but the full debate takes longer wall-clock time because Critic and Defender don't run simultaneously.
+- Research breadth (Phase 1 of directive-roadmap-research.md) runs through `gemini:flash` shell-out, but the depth dives by `copilot-sonnet` are sequential after gemini finishes — slower but otherwise full-fidelity.
+
+**What's NOT degraded (the wins from v0.5.1):**
+- Model-family diversity in audit (Codex GPT family vs Claude family) is preserved on every run.
+- Three-role debate retains all three families' signal — no more collapse to "Grader-only."
+- Counter-passes (L4 / U2 / T2) retain real cross-family signal because the master Claude is a different family than the codex-direct output it's reviewing.
+- Roadmap research Phase 5 self-audit gets actual cross-family review even without the orchestrator.
+
+**Codex-direct dispatch contract** (every phase that uses it):
+- Caller writes the rubric / prompt body to a temp file (or passes via `-p`)
+- Invokes: `bash bin/codex-direct.sh <phase> --cwd <repo> --out <result-file> < prompt-file`
+- Wrapper handles: model selection, sandbox=read-only, --skip-git-repo-check (audit doesn't need write access), JSONL transcript capture, auth/quota/timeout error classification
+- Caller reads the result file (Codex's last message) and feeds it into the debate / smoke-pass logic
+- Exit codes: 0 OK, 2 auth, 3 quota, 4 timeout, 5 refusal, 6 internal error
+- On non-zero exit: log degradation ("L3 audit fell back to Claude-only because codex-direct returned exit=N") and proceed — never halt the whole run on a single audit-pass failure
+
+**Pre-flight validation:** run `bin/factory-doctor.sh` before kicking off a long
+run. Exit code 0 = ready to go; exit 2 = will run with caveats; exit 1 = fix
+broken auth or missing CLI before invoking the factory. The doctor catches the
+"my preset never invokes Codex" pattern that produced the v0.5.0 single-session
+runs where Codex audit was silently absent.
 
 **Repo-scale gate (single-session only) — auto-engages Large-Repo Mode:**
 

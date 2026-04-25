@@ -41,6 +41,34 @@ Follow recipe-factory-loop.md in memory EXACTLY, end-to-end. The recipe is
 the source of truth; anything restated below is backstop only, not a
 substitute for reading the recipe.
 
+PRE-FLIGHT (run before anything else):
+- Invoke `bash ~/repos/octopus-factory/bin/factory-doctor.sh`. Surface the
+  output to me ONCE before kicking off. Hard failures (exit 1) halt the run
+  with a diagnostic — fix and re-invoke. Soft warnings (exit 2) proceed but
+  acknowledge them in the kickoff message so I know what won't fire.
+- The doctor specifically catches the failure mode where the active preset
+  routes audit phases to `copilot-codex` (Copilot's GPT-5.3-Codex) instead
+  of the standalone `codex` CLI — historically my factory runs ran
+  Claude-only in single-session because that preset routing never got
+  exercised. v0.5.1+ fixes this via codex-direct.sh; the doctor verifies it.
+
+CODEX DISPATCH (single-session and orchestrated alike, v0.5.1+):
+- Audit phases (L3 Critic, U1 UX, T1 theming, Q1 security, Q2 review,
+  roadmap-research Phase 5 self-audit) MUST shell out to
+  `bash ~/repos/octopus-factory/bin/codex-direct.sh <phase>` for real
+  cross-family signal. Wrapper handles model selection, sandbox,
+  transcript capture, auth/quota error classification.
+- This works regardless of the active preset and regardless of whether
+  orchestrate.sh is healthy — it bypasses both. The codex CLI on PATH +
+  ~/.codex/auth.json with a valid plan is the only requirement.
+- If codex-direct.sh returns non-zero (exit 2 auth, 3 quota, 4 timeout,
+  5 refusal, 6 internal): log the degradation ("L3 audit fell back to
+  Claude-only because codex-direct returned exit=N"), continue the run
+  with the master Claude doing the audit instead. Never halt the whole
+  factory run on a single audit-phase failure.
+- This restores the cross-family audit signal that was silently absent
+  from every single-session run before v0.5.1.
+
 OFFLOAD POLICY (non-negotiable):
 - The canonical routing preset is `copilot-heavy`. Verify that preset is
   active via `cat ~/.claude-octopus/config/providers.json | grep _mode`. If

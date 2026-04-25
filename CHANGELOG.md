@@ -11,6 +11,58 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ---
 
+## [0.5.1] — 2026-04-24
+
+Bug fix release: every recent factory run was logging `mode: single-session`
++ `L3 audit: Claude only (no Codex dispatch)` + `Three-role debate: collapsed
+to single rubric check` because there was no path from the master Claude
+session to the standalone `codex` CLI without going through orchestrate.sh
+(which has a known quality-gate timing issue on Windows). User-reported.
+
+The fix shells the master session out to `codex exec` directly via a thin
+wrapper. Independent of orchestrate.sh, independent of the active preset's
+phase routing. Restores cross-family audit signal on every single-session run.
+
+### Added
+- `bin/codex-direct.sh` — wrapper around `codex exec --model gpt-5.4 --sandbox read-only`. Bypasses orchestrate.sh entirely. Phase-aware (audit/counter/ux/theming/review/security/self-audit/custom). Captures JSONL transcript + last-message file. Exit codes classify auth (2) / quota (3) / timeout (4) / refusal (5) / internal (6) so callers can degrade gracefully without halting the whole run. Default sandbox = read-only (audit phases don't need write access). Default timeout = 600s.
+- `bin/factory-doctor.sh` — pre-run diagnostic. Validates each provider CLI is installed + authed (claude / codex / copilot / gemini), orchestrate.sh is reachable, providers.json is valid JSON, ImageMagick / git / gh present. **Specifically detects the "audit phases route to copilot-codex instead of direct codex" pattern** that produced silent Claude-only audit runs in v0.5.0 and earlier. Exit 0 ready / 2 warnings / 1 broken. Modes: `--quiet`, `--json`, `--route-only`.
+
+### Changed
+- `memory/recipes/recipe-factory-loop.md` "Single-Session Mode" section rewritten. Title changed from "(degraded fallback)" to "(Codex-augmented in v0.5.1+)". Phase substitution table updated:
+  - L3 audit (Critic) was "Claude with rubric (no model-family diversity)" → now "`bin/codex-direct.sh audit` — direct codex exec"
+  - L4 counter-audit was "**SKIPPED** — same-model duplication has no signal value" → now "Master Claude session — different family from Codex L3, so cross-family check holds"
+  - U1 / T1 was "Claude does it" → now `bin/codex-direct.sh ux` / `theming`
+  - U2 / T2 was "**SKIPPED**" → now "Master Claude session (different family than U1/T1's codex output)"
+  - Q1 security / Q2 review now use `codex-direct.sh security` / `review`
+  - Roadmap-research Phase 5 self-audit now uses `codex-direct.sh self-audit`
+  - Three-role debate restored: Grader (Copilot Haiku) → Critic (codex-direct) → Defender (master Claude). Sequential not parallel, but all three families present.
+- Recipe documents the codex-direct dispatch contract (caller writes prompt to temp file, wrapper returns last-message file path, exit codes classify failure modes).
+- `prompts/factory-loop-prompts.txt` adds two new mandatory sections:
+  - **PRE-FLIGHT** — invoke `factory-doctor.sh` before anything else; surface output once; hard failures halt, soft warnings proceed with acknowledgment.
+  - **CODEX DISPATCH** — explicit instruction that audit phases MUST shell out to `codex-direct.sh` for real cross-family signal. Documents graceful-degradation contract (non-zero exit → log + continue with Claude audit, never halt the whole run).
+
+### Why
+
+User reported "I don't think codex or chatgpt is actually being used." Investigation confirmed it: every recent run on Astra-Deck, DefenderControl, Images, project-nomad-desktop, TeamStation, ZeusWatch logged `mode: single-session` with `L3 audit: Claude only`. Two compounding causes:
+
+1. Single-session was the default fallback (orchestrator quality-gate issue on Windows), and single-session collapsed Codex phases to Claude-only because there was no documented path from the master session to the codex CLI.
+2. The active `copilot-heavy` preset routes audit / security / UX / theming to `copilot-codex` (Copilot's GPT-5.3-Codex), NOT the standalone codex CLI. Even with orchestration working, "Codex" in the factory has meant Copilot-via-GPT, not direct ChatGPT Pro Codex.
+
+`codex-direct.sh` fixes both — it bypasses the orchestrator AND bypasses the preset routing. The factory-doctor surfaces the routing analysis before the user wastes a 30-min run.
+
+### Verification
+
+- Both scripts parse cleanly + reject bad input (smoke-tested on Windows + Git Bash).
+- factory-doctor against the user's actual environment correctly flags `audit phases route to copilot-codex (Copilot's GPT-5.3-Codex), NOT the standalone codex CLI` and lists three remediation options.
+- Recipe + prompt cross-references consistent: every phase that single-session previously skipped or collapsed to Claude is now explicitly mapped to a `codex-direct.sh <phase>` invocation.
+- Exit codes verified by reading codex CLI's actual output formats and rate-limit message patterns.
+
+### Note on testing
+
+User explicitly asked to test the fixes themselves rather than have me burn ChatGPT Pro quota smoke-testing `codex exec` from the factory. The wrapper is tested at the argument-parsing + auth-detection layer; the live dispatch path is what the user will exercise on the next factory run.
+
+[0.5.1]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.5.1
+
 ## [0.5.0] — 2026-04-24
 
 Promotes roadmap research from a single `L1a+L1b` scan to a full five-phase
@@ -357,6 +409,6 @@ Initial public release. Full pipeline working end-to-end on Windows 11 + Git Bas
 - Linux Ubuntu 24.04 / Debian 12 / Arch — light testing
 - Provider stack: Claude Max, ChatGPT Pro Codex, Gemini Pro, GitHub Copilot
 
-[Unreleased]: https://github.com/SysAdminDoc/octopus-factory/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/SysAdminDoc/octopus-factory/compare/v0.5.1...HEAD
 [0.2.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.2.0
 [0.1.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.1.0

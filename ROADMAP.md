@@ -4,6 +4,23 @@ Prioritized integration plan based on a survey of related projects (Aider, Cline
 
 Each item cites the upstream source so contributors can lift code with attribution. Items are ordered by leverage — highest-impact first.
 
+## v0.5.1 — shipped 2026-04-24
+
+### Codex direct-dispatch + factory-doctor diagnostic
+
+**Status:** shipped in v0.5.1
+**Why:** User reported "codex/chatgpt isn't being used". Investigation across 6 recent runs confirmed: every `state.yaml` logged `mode: single-session` + `L3 audit: Claude only (no Codex dispatch)`. Two causes compounded — orchestrate.sh's Windows quality-gate timing forced single-session mode, and even when orchestrated would have run, the active `copilot-heavy` preset routes "Codex" phases to `copilot-codex` (Copilot's GPT-5.3-Codex), not the standalone `codex` CLI.
+
+**What shipped:**
+- `bin/codex-direct.sh` — wrapper around `codex exec --model gpt-5.4 --sandbox read-only`. Bypasses orchestrate.sh AND the preset routing. Phase-aware (audit/counter/ux/theming/review/security/self-audit/custom). JSONL transcript capture + last-message file. Exit codes classify auth/quota/timeout/refusal/internal so callers degrade gracefully.
+- `bin/factory-doctor.sh` — pre-run diagnostic. Validates CLI auth + orchestrator + providers.json + image tooling + git/gh. Specifically catches the "audit phases route to copilot-codex" pattern that produced silent Claude-only audit runs.
+- Recipe single-session mode rewritten — every phase that previously collapsed to Claude-only or got skipped now invokes `codex-direct.sh <phase>`. Three-role debate restored (sequential, but all three families present).
+- Prompt adds mandatory PRE-FLIGHT (run doctor first) + CODEX DISPATCH (audit phases MUST shell out to codex-direct) sections.
+
+**Closes:** the "factory ran 6 times without ever invoking Codex" failure mode user surfaced 2026-04-24.
+
+---
+
 ## v0.5.0 — shipped 2026-04-24
 
 ### Five-phase roadmap research directive + tier taxonomy
