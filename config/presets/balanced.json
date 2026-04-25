@@ -1,16 +1,22 @@
 {
-  "version": "3.0",
-  "_mode": "balanced",
   "_description": "User's preferred routing. Research is a two-pass flow (Gemini primary, Claude augments). Audit/UX/Theming go to Codex. Claude Max handles build+counter-audit. Copilot handles deliver + universal fallback. Logo generation is ChatGPT-primary (transparent PNG) with Gemini fallback.",
+  "_image_generation_note": "codex:image maps to OpenAI gpt-image-1 (supports transparent_background: true). Requires OPENAI_API_KEY in env or ~/.codex/auth.json. User currently has OAuth-only Codex auth (no API key); image generation will fall back to gemini:image until an API key is added. Generate key at https://platform.openai.com/api-keys → export OPENAI_API_KEY=sk-... in shell profile.",
+  "_mode": "balanced",
+  "_tier_semantics": {
+    "editor": "code-generation-focused model for actual file edits, when primary is better at reasoning than writing code. Falls back to primary if unset.",
+    "primary": "role-default agent from routing.phases/routing.roles",
+    "weak": "cheap model for mechanical work: commit messages, diff summaries, lint-error interpretation, rubric-scoring. Cost target: 10-30% of primary."
+  },
+  "overrides": {},
   "providers": {
     "codex": {
       "default": "gpt-5.4",
       "fallback": "gpt-5.4-mini",
-      "spark": "gpt-5.4",
+      "image": "gpt-image-1",
+      "large_context": "gpt-5.4",
       "mini": "gpt-5.4-mini",
       "reasoning": "o3",
-      "large_context": "gpt-5.4",
-      "image": "gpt-image-1"
+      "spark": "gpt-5.4"
     },
     "gemini": {
       "default": "gemini-2.5-flash",
@@ -21,29 +27,29 @@
   },
   "routing": {
     "phases": {
+      "define": "claude",
+      "deliver": "copilot",
+      "develop": "claude",
       "discover": "gemini:default",
       "discover_augment": "claude",
-      "define": "claude",
-      "develop": "claude",
-      "deliver": "copilot",
+      "research": "gemini:default",
+      "research_augment": "claude",
       "review": "codex:default",
       "security": "codex:reasoning",
-      "ux": "codex:default",
       "theming": "codex:default",
-      "research": "gemini:default",
-      "research_augment": "claude"
+      "ux": "codex:default"
     },
     "roles": {
-      "researcher": "gemini:default",
-      "researcher_augment": "claude",
+      "builder": "claude",
+      "counter-audit": "claude",
+      "editor": "copilot-sonnet",
       "image": "codex:image",
       "image_fallback": "gemini:image",
-      "counter-audit": "claude",
-      "ux_counter_polish": "claude",
+      "researcher": "gemini:default",
+      "researcher_augment": "claude",
       "theming_counter_polish": "claude",
-      "builder": "claude",
-      "weak": "copilot-haiku",
-      "editor": "copilot-sonnet"
+      "ux_counter_polish": "claude",
+      "weak": "copilot-haiku"
     }
   },
   "tiers": {
@@ -51,20 +57,14 @@
       "codex": "mini",
       "gemini": "flash"
     },
-    "standard": {
+    "premium": {
       "codex": "default",
       "gemini": "default"
     },
-    "premium": {
+    "standard": {
       "codex": "default",
       "gemini": "default"
     }
   },
-  "overrides": {},
-  "_image_generation_note": "codex:image maps to OpenAI gpt-image-1 (supports transparent_background: true). Requires OPENAI_API_KEY in env or ~/.codex/auth.json. User currently has OAuth-only Codex auth (no API key); image generation will fall back to gemini:image until an API key is added. Generate key at https://platform.openai.com/api-keys \u2192 export OPENAI_API_KEY=sk-... in shell profile.",
-  "_tier_semantics": {
-    "primary": "role-default agent from routing.phases/routing.roles",
-    "weak": "cheap model for mechanical work: commit messages, diff summaries, lint-error interpretation, rubric-scoring. Cost target: 10-30% of primary.",
-    "editor": "code-generation-focused model for actual file edits, when primary is better at reasoning than writing code. Falls back to primary if unset."
-  }
+  "version": "3.0"
 }

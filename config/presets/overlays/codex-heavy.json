@@ -1,0 +1,23 @@
+{
+  "_mode": "codex-heavy",
+  "_description": "Maximize ChatGPT Pro / Codex usage. Codex handles all audit + build work. Use when ChatGPT Pro quota is fresh.",
+  "routing": {
+    "phases": {
+      "discover": "gemini:default",
+      "define": "codex:default",
+      "develop": "codex:default",
+      "deliver": "codex:default",
+      "review": "codex:default",
+      "security": "codex:reasoning",
+      "research": "gemini:default"
+    },
+    "roles": {
+      "researcher": "gemini:default",
+      "image": "gemini:image",
+      "counter-audit": "claude",
+      "builder": "codex:default",
+      "weak": "codex:mini",
+      "editor": "codex:default"
+    }
+  }
+}

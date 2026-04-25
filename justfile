@@ -98,6 +98,16 @@ ai-scrub *ARGS:
 
 # ─── Dev ──────────────────────────────────────────────────────────────────────
 
+# Rebuild every routing preset from overlays/_base.json + overlays/<mode>.json.
+[group('dev')]
+preset-build *ARGS:
+    @./config/presets/build.sh {{ARGS}}
+
+# Verify committed presets match base+overlay sources (for pre-commit / CI).
+[group('dev')]
+preset-verify:
+    @./config/presets/build.sh --verify
+
 # Run promptfoo regression tests over the prompt suite.
 [group('dev')]
 test:

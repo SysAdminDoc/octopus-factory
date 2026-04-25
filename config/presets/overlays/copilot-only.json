@@ -1,0 +1,23 @@
+{
+  "_mode": "copilot-only",
+  "_description": "Route everything through Copilot's multi-backend (claude/gpt-5/gemini internally). Use when direct account quotas are low. Preserves ChatGPT Pro + Claude Max + Gemini Pro quotas.",
+  "routing": {
+    "phases": {
+      "discover": "copilot-research",
+      "define": "copilot",
+      "develop": "copilot",
+      "deliver": "copilot",
+      "review": "copilot",
+      "security": "copilot",
+      "research": "copilot-research"
+    },
+    "roles": {
+      "researcher": "copilot-research",
+      "image": "gemini:image",
+      "counter-audit": "copilot",
+      "builder": "copilot",
+      "weak": "copilot-haiku",
+      "editor": "copilot-sonnet"
+    }
+  }
+}

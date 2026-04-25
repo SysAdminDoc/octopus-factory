@@ -1,0 +1,23 @@
+{
+  "_mode": "direct-only",
+  "_description": "Route everything through direct accounts (Codex/Claude/Gemini), never through Copilot. Use when Copilot quota is low or exhausted.",
+  "routing": {
+    "phases": {
+      "discover": "gemini:default",
+      "define": "claude",
+      "develop": "claude",
+      "deliver": "claude",
+      "review": "codex:default",
+      "security": "codex:reasoning",
+      "research": "gemini:default"
+    },
+    "roles": {
+      "researcher": "gemini:default",
+      "image": "gemini:image",
+      "counter-audit": "claude",
+      "builder": "claude",
+      "weak": "gemini:flash",
+      "editor": "claude"
+    }
+  }
+}

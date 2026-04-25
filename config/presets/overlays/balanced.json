@@ -1,0 +1,32 @@
+{
+  "_mode": "balanced",
+  "_description": "User's preferred routing. Research is a two-pass flow (Gemini primary, Claude augments). Audit/UX/Theming go to Codex. Claude Max handles build+counter-audit. Copilot handles deliver + universal fallback. Logo generation is ChatGPT-primary (transparent PNG) with Gemini fallback.",
+  "routing": {
+    "phases": {
+      "discover": "gemini:default",
+      "discover_augment": "claude",
+      "define": "claude",
+      "develop": "claude",
+      "deliver": "copilot",
+      "review": "codex:default",
+      "security": "codex:reasoning",
+      "ux": "codex:default",
+      "theming": "codex:default",
+      "research": "gemini:default",
+      "research_augment": "claude"
+    },
+    "roles": {
+      "researcher": "gemini:default",
+      "researcher_augment": "claude",
+      "image": "codex:image",
+      "image_fallback": "gemini:image",
+      "counter-audit": "claude",
+      "ux_counter_polish": "claude",
+      "theming_counter_polish": "claude",
+      "builder": "claude",
+      "weak": "copilot-haiku",
+      "editor": "copilot-sonnet"
+    }
+  },
+  "_image_generation_note": "codex:image maps to OpenAI gpt-image-1 (supports transparent_background: true). Requires OPENAI_API_KEY in env or ~/.codex/auth.json. User currently has OAuth-only Codex auth (no API key); image generation will fall back to gemini:image until an API key is added. Generate key at https://platform.openai.com/api-keys → export OPENAI_API_KEY=sk-... in shell profile."
+}

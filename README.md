@@ -214,6 +214,8 @@ Install: `brew install just` / `apt install just` / `winget install Casey.Just`.
 
 Pick `copilot-heavy` if you want to preserve Claude Max + ChatGPT Pro quotas. Pick `balanced` for the default mix. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for what each preset routes where.
 
+**Authoring or modifying presets.** Each preset is generated from `config/presets/overlays/_base.json` (fields shared across every mode — provider catalog, tiers, semantics) plus `config/presets/overlays/<mode>.json` (mode-specific routing + descriptive metadata). To change the codex catalog or tier semantics for every preset, edit `_base.json` once and run `just preset-build`. To add a new preset, drop a new `overlays/<name>.json` and rebuild. `just preset-verify` exits non-zero if any committed `presets/<mode>.json` has drifted from its source — wire it into pre-commit / CI to keep base+overlay the single source of truth.
+
 ### Other recipes
 
 | Recipe | Trigger | What it does |
@@ -240,7 +242,11 @@ bin/
   install.sh           — one-step installer
 config/
   presets/             — 6 routing modes (balanced, copilot-heavy, claude-heavy,
-                         codex-heavy, direct-only, copilot-only)
+                         codex-heavy, direct-only, copilot-only) — generated from
+                         overlays/_base.json + overlays/<mode>.json via build.sh
+  presets/overlays/    — source of truth: shared base + per-mode delta. Edit here.
+  presets/build.sh     — rebuild presets / verify drift (`just preset-build`,
+                         `just preset-verify`)
   workflows/           — YAML workflow bridge for octo's orchestrate.sh
 prompts/
   *.txt                — copy-paste-ready zero-fill prompts

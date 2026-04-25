@@ -1,15 +1,21 @@
 {
-  "version": "3.0",
-  "_mode": "codex-heavy",
   "_description": "Maximize ChatGPT Pro / Codex usage. Codex handles all audit + build work. Use when ChatGPT Pro quota is fresh.",
+  "_mode": "codex-heavy",
+  "_tier_semantics": {
+    "editor": "code-generation-focused model for actual file edits, when primary is better at reasoning than writing code. Falls back to primary if unset.",
+    "primary": "role-default agent from routing.phases/routing.roles",
+    "weak": "cheap model for mechanical work: commit messages, diff summaries, lint-error interpretation, rubric-scoring. Cost target: 10-30% of primary."
+  },
+  "overrides": {},
   "providers": {
     "codex": {
       "default": "gpt-5.4",
       "fallback": "gpt-5.4-mini",
-      "spark": "gpt-5.4",
+      "image": "gpt-image-1",
+      "large_context": "gpt-5.4",
       "mini": "gpt-5.4-mini",
       "reasoning": "o3",
-      "large_context": "gpt-5.4"
+      "spark": "gpt-5.4"
     },
     "gemini": {
       "default": "gemini-2.5-flash",
@@ -20,21 +26,21 @@
   },
   "routing": {
     "phases": {
-      "discover": "gemini:default",
       "define": "codex:default",
-      "develop": "codex:default",
       "deliver": "codex:default",
+      "develop": "codex:default",
+      "discover": "gemini:default",
+      "research": "gemini:default",
       "review": "codex:default",
-      "security": "codex:reasoning",
-      "research": "gemini:default"
+      "security": "codex:reasoning"
     },
     "roles": {
-      "researcher": "gemini:default",
-      "image": "gemini:image",
-      "counter-audit": "claude",
       "builder": "codex:default",
-      "weak": "codex:mini",
-      "editor": "codex:default"
+      "counter-audit": "claude",
+      "editor": "codex:default",
+      "image": "gemini:image",
+      "researcher": "gemini:default",
+      "weak": "codex:mini"
     }
   },
   "tiers": {
@@ -42,19 +48,14 @@
       "codex": "mini",
       "gemini": "flash"
     },
-    "standard": {
+    "premium": {
       "codex": "default",
       "gemini": "default"
     },
-    "premium": {
+    "standard": {
       "codex": "default",
       "gemini": "default"
     }
   },
-  "overrides": {},
-  "_tier_semantics": {
-    "primary": "role-default agent from routing.phases/routing.roles",
-    "weak": "cheap model for mechanical work: commit messages, diff summaries, lint-error interpretation, rubric-scoring. Cost target: 10-30% of primary.",
-    "editor": "code-generation-focused model for actual file edits, when primary is better at reasoning than writing code. Falls back to primary if unset."
-  }
+  "version": "3.0"
 }

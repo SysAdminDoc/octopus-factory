@@ -1,0 +1,23 @@
+{
+  "_mode": "claude-heavy",
+  "_description": "Maximize Claude Max usage (build/audit/counter-audit/deliver all on Claude). Use when Claude Max quota is fresh and you want to burn it before other quotas.",
+  "routing": {
+    "phases": {
+      "discover": "gemini:default",
+      "define": "claude",
+      "develop": "claude",
+      "deliver": "claude",
+      "review": "claude",
+      "security": "claude",
+      "research": "gemini:default"
+    },
+    "roles": {
+      "researcher": "gemini:default",
+      "image": "gemini:image",
+      "counter-audit": "codex:default",
+      "builder": "claude",
+      "weak": "claude",
+      "editor": "claude"
+    }
+  }
+}
