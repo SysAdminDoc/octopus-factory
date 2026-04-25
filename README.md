@@ -128,7 +128,7 @@ Provider stack tested:
 - [Claude Octopus plugin](https://github.com/nyldn/claude-octopus) installed in Claude Code
 - At least one of: ChatGPT Pro (Codex CLI), Gemini Pro (Gemini CLI), GitHub Copilot subscription
 - `git`, `bash` (or Git Bash on Windows), `python` 3.10+, `jq`
-- Optional but recommended: `git-filter-repo` (AI-scrub), `cloc` (modularization scale checks), `syft` (SBOM), `cosign` (artifact signing)
+- Optional but recommended: `git-filter-repo` (AI-scrub), `cloc` (modularization scale checks), `syft` (SBOM), `cosign` (artifact signing), [`just`](https://github.com/casey/just) (unified task runner — see [Use → just](#just-recommended))
 
 ### One-line install
 
@@ -179,6 +179,25 @@ The prompt auto-detects:
 - **Large-Repo Mode** auto-engages if scale exceeds 50K LOC / 500 files / 1K tests / 30 ROADMAP items
 
 Nothing else to fill in.
+
+### just (recommended)
+
+If you have [`just`](https://github.com/casey/just) installed, every `bin/` script is exposed as a discoverable, grouped recipe. From the repo root:
+
+```bash
+just                          # list all recipes (grouped: preflight / phases / state / tools / dev)
+just doctor                   # pre-flight diagnostic
+just route copilot-heavy      # swap routing preset
+just codex audit              # dispatch the audit phase to direct Codex
+just secret-scan              # gitleaks pass on working tree
+just dep-scan                 # osv-scanner CVE pass
+just checkpoint cp_init       # initialize shadow-git checkpoint store
+just version                  # show version + dependency status
+```
+
+Recipes are thin pass-throughs to `bin/<script>.sh` — every flag the underlying script accepts works after the recipe name (`just doctor --json`, `just codex audit --model gpt-5.4`, etc.). No magic, just discoverability.
+
+Install: `brew install just` / `apt install just` / `winget install Casey.Just`.
 
 ### Routing modes
 

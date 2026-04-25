@@ -7,7 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 ## [Unreleased]
 
 ### Added
-- (track future improvements here)
+- `justfile` at repo root — discoverable, grouped task surface for every `bin/` script (`just`, `just doctor`, `just route copilot-heavy`, `just codex audit`, `just secret-scan`, etc.). Recipes are thin pass-throughs; all underlying flags work after the recipe name. Groups: preflight, phases, state, tools, dev. Closes the "no unified entry point on Windows" friction without touching any existing script. Install: `winget install Casey.Just` / `brew install just` / `apt install just`.
+- `just` listed as optional prereq in `bin/install.sh` with per-platform install hints.
+- README `### just (recommended)` subsection under **Use** with examples + install line.
 
 ---
 

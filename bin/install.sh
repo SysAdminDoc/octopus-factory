@@ -41,7 +41,7 @@ fi
 echo "  ✓ git, bash, python, jq present"
 
 # Optional commands — warn but don't block
-for cmd in git-filter-repo cloc syft cosign; do
+for cmd in git-filter-repo cloc syft cosign just; do
     if ! command -v "$cmd" &>/dev/null; then
         echo "  ⚠ optional command missing: $cmd"
         case "$cmd" in
@@ -49,6 +49,7 @@ for cmd in git-filter-repo cloc syft cosign; do
             cloc)            echo "      install: brew install cloc OR apt install cloc" ;;
             syft)            echo "      install: see https://github.com/anchore/syft" ;;
             cosign)          echo "      install: see https://github.com/sigstore/cosign" ;;
+            just)            echo "      install: brew install just  /  apt install just  /  winget install Casey.Just" ;;
         esac
     fi
 done
