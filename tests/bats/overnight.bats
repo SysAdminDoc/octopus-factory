@@ -36,6 +36,30 @@ setup() {
     [[ "$stderr" == *"unknown option"* ]]
 }
 
+@test "factory-overnight: rejects missing option values clearly" {
+    run --separate-stderr bash "$SCRIPT" --duration
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"--duration requires a value"* ]]
+
+    run --separate-stderr bash "$SCRIPT" --auto-discover --show-config
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"--auto-discover requires a value"* ]]
+}
+
+@test "factory-overnight: rejects invalid numeric option values clearly" {
+    run --separate-stderr bash "$SCRIPT" "$REPO_ROOT" --show-config --sleep nope
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"--sleep must be a non-negative integer"* ]]
+
+    run --separate-stderr bash "$SCRIPT" "$REPO_ROOT" --show-config --cycle-timeout 0
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"--cycle-timeout must be greater than zero"* ]]
+
+    run --separate-stderr bash "$SCRIPT" "$REPO_ROOT" --show-config --max-spend-total nope
+    [ "$status" -eq 1 ]
+    [[ "$stderr" == *"--max-spend-total must be a non-negative number"* ]]
+}
+
 @test "factory-overnight: rejects missing repo arg" {
     run --separate-stderr bash "$SCRIPT"
     [ "$status" -eq 1 ]

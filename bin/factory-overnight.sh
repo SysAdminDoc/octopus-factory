@@ -175,6 +175,43 @@ SHOW_CONFIG=false
 
 REPOS=()
 
+require_value() {
+    local opt="$1"
+    local value="${2:-}"
+    if [[ -z "$value" || "$value" == --* ]]; then
+        echo "factory-overnight: $opt requires a value" >&2
+        exit 1
+    fi
+}
+
+require_nonnegative_int() {
+    local opt="$1"
+    local value="$2"
+    if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+        echo "factory-overnight: $opt must be a non-negative integer" >&2
+        exit 1
+    fi
+}
+
+require_positive_int() {
+    local opt="$1"
+    local value="$2"
+    require_nonnegative_int "$opt" "$value"
+    if [[ "$value" -eq 0 ]]; then
+        echo "factory-overnight: $opt must be greater than zero" >&2
+        exit 1
+    fi
+}
+
+require_nonnegative_number() {
+    local opt="$1"
+    local value="$2"
+    if [[ ! "$value" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+        echo "factory-overnight: $opt must be a non-negative number" >&2
+        exit 1
+    fi
+}
+
 LOCK_FILE="$HOME/.factory-overnight.lock"
 STOP_FILE="$HOME/.factory-overnight.stop"
 PAUSE_FILE="$HOME/.factory-overnight.pause"
@@ -185,28 +222,55 @@ LOG_ROOT="$HOME/.claude-octopus/logs/overnight"
 # ─── Parse args ─────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --until)                  END_TIME="$2"; shift 2 ;;
-        --start-time)             START_TIME="$2"; shift 2 ;;
-        --duration)               DURATION="$2"; shift 2 ;;
-        --max-cycles)             MAX_CYCLES="$2"; shift 2 ;;
-        --max-spend-total)        MAX_SPEND_TOTAL="$2"; shift 2 ;;
-        --sleep)                  SLEEP_SEC="$2"; shift 2 ;;
-        --cycle-timeout)          CYCLE_TIMEOUT_SEC="$2"; shift 2 ;;
-        --convergence-rotations)  CONVERGENCE_ROTATIONS="$2"; shift 2 ;;
+        --until)
+            require_value "$1" "${2:-}"; END_TIME="$2"; shift 2 ;;
+        --start-time)
+            require_value "$1" "${2:-}"; START_TIME="$2"; shift 2 ;;
+        --duration)
+            require_value "$1" "${2:-}"; DURATION="$2"; shift 2 ;;
+        --max-cycles)
+            require_value "$1" "${2:-}"
+            require_nonnegative_int "$1" "$2"
+            MAX_CYCLES="$2"; shift 2 ;;
+        --max-spend-total)
+            require_value "$1" "${2:-}"
+            require_nonnegative_number "$1" "$2"
+            MAX_SPEND_TOTAL="$2"; shift 2 ;;
+        --sleep)
+            require_value "$1" "${2:-}"
+            require_nonnegative_int "$1" "$2"
+            SLEEP_SEC="$2"; shift 2 ;;
+        --cycle-timeout)
+            require_value "$1" "${2:-}"
+            require_positive_int "$1" "$2"
+            CYCLE_TIMEOUT_SEC="$2"; shift 2 ;;
+        --convergence-rotations)
+            require_value "$1" "${2:-}"
+            require_positive_int "$1" "$2"
+            CONVERGENCE_ROTATIONS="$2"; shift 2 ;;
         --no-rotate)              NO_ROTATE=true; shift ;;
         --dry-run)                DRY_RUN=true; shift ;;
         --status)                 STATUS_ONLY=true; shift ;;
         --stop)                   STOP_ONLY=true; shift ;;
-        --model)                  MODEL_OVERRIDE="$2"; shift 2 ;;
+        --model)
+            require_value "$1" "${2:-}"; MODEL_OVERRIDE="$2"; shift 2 ;;
         --quiet|-q)               QUIET=true; shift ;;
         --no-color)               USE_COLOR=false; shift ;;
-        --heartbeat-sec)          HEARTBEAT_SEC="$2"; shift 2 ;;
-        --auto-discover)          AUTO_DISCOVER_DIR="$2"; shift 2 ;;
-        --exclude-repo)           EXCLUDES+=("$2"); shift 2 ;;
+        --heartbeat-sec)
+            require_value "$1" "${2:-}"
+            require_nonnegative_int "$1" "$2"
+            HEARTBEAT_SEC="$2"; shift 2 ;;
+        --auto-discover)
+            require_value "$1" "${2:-}"; AUTO_DISCOVER_DIR="$2"; shift 2 ;;
+        --exclude-repo)
+            require_value "$1" "${2:-}"; EXCLUDES+=("$2"); shift 2 ;;
         --shuffle-repos)          SHUFFLE_REPOS=true; shift ;;
-        --healthcheck-url)        HEALTHCHECK_URL="$2"; shift 2 ;;
-        --notify)                 NOTIFY_SPECS+=("$2"); shift 2 ;;
-        --resume)                 RESUME_RUN_ID="$2"; shift 2 ;;
+        --healthcheck-url)
+            require_value "$1" "${2:-}"; HEALTHCHECK_URL="$2"; shift 2 ;;
+        --notify)
+            require_value "$1" "${2:-}"; NOTIFY_SPECS+=("$2"); shift 2 ;;
+        --resume)
+            require_value "$1" "${2:-}"; RESUME_RUN_ID="$2"; shift 2 ;;
         --fail-fast)              FAIL_FAST=true; shift ;;
         --require-clean-tree)     REQUIRE_CLEAN_TREE=true; shift ;;
         --require-remote)         REQUIRE_REMOTE=true; shift ;;

@@ -45,14 +45,27 @@ CWD=""
 OUT_FILE=""
 PROMPT_ARG=""
 
+require_value() {
+    local opt="$1"
+    local value="${2:-}"
+    if [[ -z "$value" || "$value" == --* ]]; then
+        echo "codex-direct: $opt requires a value" >&2
+        exit 1
+    fi
+}
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         audit|counter|ux|theming|review|security|self-audit|custom)
             PHASE="$1"; shift ;;
-        --model) MODEL_OVERRIDE="$2"; shift 2 ;;
-        --cwd)   CWD="$2"; shift 2 ;;
-        --out)   OUT_FILE="$2"; shift 2 ;;
-        -p|--prompt) PROMPT_ARG="$2"; shift 2 ;;
+        --model)
+            require_value "$1" "${2:-}"; MODEL_OVERRIDE="$2"; shift 2 ;;
+        --cwd)
+            require_value "$1" "${2:-}"; CWD="$2"; shift 2 ;;
+        --out)
+            require_value "$1" "${2:-}"; OUT_FILE="$2"; shift 2 ;;
+        -p|--prompt)
+            require_value "$1" "${2:-}"; PROMPT_ARG="$2"; shift 2 ;;
         -h|--help)
             sed -n '2,30p' "$0"
             exit 0 ;;
