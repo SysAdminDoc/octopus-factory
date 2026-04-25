@@ -49,6 +49,58 @@ ok()    { OK_LINES+=("[OK]    $1"); }
 warn()  { SOFT_WARNINGS+=("[WARN]  $1"); }
 fail()  { HARD_FAILURES+=("[FAIL]  $1"); }
 
+json_escape() {
+    local value="${1-}"
+    value=${value//\\/\\\\}
+    value=${value//\"/\\\"}
+    value=${value//$'\b'/\\b}
+    value=${value//$'\f'/\\f}
+    value=${value//$'\n'/\\n}
+    value=${value//$'\r'/\\r}
+    value=${value//$'\t'/\\t}
+    printf '"%s"' "$value"
+}
+
+json_array() {
+    local first=true
+    local item
+
+    printf '['
+    for item in "$@"; do
+        if $first; then
+            first=false
+        else
+            printf ','
+        fi
+        printf '\n    '
+        json_escape "$item"
+    done
+    if ! $first; then
+        printf '\n  '
+    fi
+    printf ']'
+}
+
+status_word() {
+    if [[ ${#HARD_FAILURES[@]} -gt 0 ]]; then
+        echo "broken"
+    elif [[ ${#SOFT_WARNINGS[@]} -gt 0 ]]; then
+        echo "warning"
+    else
+        echo "ok"
+    fi
+}
+
+status_code() {
+    if [[ ${#HARD_FAILURES[@]} -gt 0 ]]; then
+        echo 1
+    elif [[ ${#SOFT_WARNINGS[@]} -gt 0 ]]; then
+        echo 2
+    else
+        echo 0
+    fi
+}
+
 PROVIDERS_JSON="${HOME}/.claude-octopus/config/providers.json"
 ORCH_SH="${HOME}/.claude/plugins/cache/nyldn-plugins/octo/9.23.0/scripts/orchestrate.sh"
 
@@ -206,19 +258,27 @@ fi
 
 # ---------- Output ----------
 if $JSON; then
+    EXIT_CODE="$(status_code)"
     {
         printf '{\n'
-        printf '  "active_preset": "%s",\n' "$ACTIVE_MODE"
-        printf '  "ok": [\n'
-        printf '%s\n' "${OK_LINES[@]}" | jq -R . | paste -sd ',' -
-        printf '  ],\n'
-        printf '  "warnings": [\n'
-        printf '%s\n' "${SOFT_WARNINGS[@]}" | jq -R . | paste -sd ',' -
-        printf '  ],\n'
-        printf '  "failures": [\n'
-        printf '%s\n' "${HARD_FAILURES[@]}" | jq -R . | paste -sd ',' -
-        printf '  ]\n}\n'
+        printf '  "active_preset": '
+        json_escape "$ACTIVE_MODE"
+        printf ',\n'
+        printf '  "status": '
+        json_escape "$(status_word)"
+        printf ',\n'
+        printf '  "exit_code": %s,\n' "$EXIT_CODE"
+        printf '  "ok": '
+        json_array "${OK_LINES[@]}"
+        printf ',\n'
+        printf '  "warnings": '
+        json_array "${SOFT_WARNINGS[@]}"
+        printf ',\n'
+        printf '  "failures": '
+        json_array "${HARD_FAILURES[@]}"
+        printf '\n}\n'
     }
+    exit "$EXIT_CODE"
 elif $ROUTE_ONLY; then
     echo "Active preset: $ACTIVE_MODE"
     echo "Phase routing:"
