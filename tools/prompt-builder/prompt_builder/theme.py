@@ -1,4 +1,4 @@
-"""Catppuccin Mocha QSS theme.
+"""Refined Catppuccin Mocha QSS theme.
 
 Palette reference: https://github.com/catppuccin/catppuccin
 Applied via QApplication.setStyleSheet so every widget inherits.
@@ -48,12 +48,25 @@ QMainWindow, QDialog {{
 }}
 
 QSplitter::handle {{
-    background-color: {SURFACE_0};
+    background-color: {MANTLE};
     width: 2px;
 }}
 
 QSplitter::handle:hover {{
-    background-color: {MAUVE};
+    background-color: {SURFACE_1};
+}}
+
+QWidget#nav_panel {{
+    background-color: {MANTLE};
+    border-right: 1px solid {SURFACE_0};
+}}
+
+QWidget#content_panel {{
+    background-color: {BASE};
+}}
+
+QWidget#form_row {{
+    background-color: transparent;
 }}
 
 QGroupBox {{
@@ -78,15 +91,102 @@ QLabel {{
 }}
 
 QLabel#help_text {{
-    color: {OVERLAY_2};
+    color: {SUBTEXT_0};
     font-size: 9pt;
+    line-height: 135%;
 }}
 
 QLabel#section_header {{
-    color: {LAVENDER};
-    font-size: 11pt;
+    color: {TEXT};
+    font-size: 16pt;
+    font-weight: 700;
+    padding: 0;
+}}
+
+QLabel#section_title {{
+    color: {TEXT};
+    font-size: 16pt;
+    font-weight: 700;
+    padding: 0;
+}}
+
+QLabel#section_kicker {{
+    color: {TEAL};
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}}
+
+QLabel#app_title {{
+    color: {TEXT};
+    font-size: 17pt;
+    font-weight: 750;
+}}
+
+QLabel#app_subtitle, QLabel#nav_footer {{
+    color: {SUBTEXT_0};
+    font-size: 9pt;
+    line-height: 140%;
+}}
+
+QLabel#empty_state {{
+    background-color: rgba(49, 50, 68, 0.58);
+    border: 1px dashed {SURFACE_1};
+    border-radius: 8px;
+    color: {OVERLAY_2};
+    font-size: 9pt;
+    padding: 16px 10px;
+}}
+
+QLabel#field_label {{
+    color: {SUBTEXT_1};
+    font-size: 9.5pt;
     font-weight: 600;
-    padding: 6px 0;
+    padding-top: 0;
+}}
+
+QLabel#inline_notice {{
+    background-color: rgba(49, 50, 68, 0.72);
+    border: 1px solid {SURFACE_0};
+    border-radius: 8px;
+    color: {SUBTEXT_1};
+    font-size: 9pt;
+    padding: 9px 11px;
+}}
+
+QLabel#inline_notice[tone="warning"] {{
+    background-color: rgba(250, 179, 135, 0.10);
+    border-color: rgba(250, 179, 135, 0.42);
+    color: {YELLOW};
+}}
+
+QLabel#inline_notice[tone="ok"] {{
+    background-color: rgba(148, 226, 213, 0.10);
+    border-color: rgba(148, 226, 213, 0.35);
+    color: {TEAL};
+}}
+
+QLabel#status_pill {{
+    background-color: {SURFACE_0};
+    border: 1px solid {SURFACE_1};
+    border-radius: 10px;
+    color: {SUBTEXT_1};
+    font-size: 8pt;
+    font-weight: 700;
+    padding: 3px 9px;
+}}
+
+QLabel#status_pill[tone="warning"] {{
+    background-color: rgba(249, 226, 175, 0.12);
+    border-color: rgba(249, 226, 175, 0.42);
+    color: {YELLOW};
+}}
+
+QLabel#status_pill[tone="ok"] {{
+    background-color: rgba(166, 227, 161, 0.10);
+    border-color: rgba(166, 227, 161, 0.36);
+    color: {GREEN};
 }}
 
 QLabel#footer_count {{
@@ -95,10 +195,10 @@ QLabel#footer_count {{
 }}
 
 QLineEdit, QPlainTextEdit, QTextEdit, QComboBox, QSpinBox {{
-    background-color: {SURFACE_0};
+    background-color: {MANTLE};
     border: 1px solid {SURFACE_1};
-    border-radius: 6px;
-    padding: 6px 8px;
+    border-radius: 8px;
+    padding: 8px 10px;
     color: {TEXT};
     selection-background-color: {MAUVE};
     selection-color: {CRUST};
@@ -106,7 +206,13 @@ QLineEdit, QPlainTextEdit, QTextEdit, QComboBox, QSpinBox {{
 
 QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus,
 QComboBox:focus, QSpinBox:focus {{
-    border: 1px solid {MAUVE};
+    border: 1px solid {LAVENDER};
+    background-color: {CRUST};
+}}
+
+QLineEdit:hover, QPlainTextEdit:hover, QTextEdit:hover,
+QComboBox:hover, QSpinBox:hover {{
+    border-color: {SURFACE_2};
 }}
 
 QLineEdit:disabled, QPlainTextEdit:disabled, QComboBox:disabled, QSpinBox:disabled {{
@@ -117,13 +223,17 @@ QLineEdit:disabled, QPlainTextEdit:disabled, QComboBox:disabled, QSpinBox:disabl
 QPlainTextEdit#preview {{
     background-color: {CRUST};
     color: {TEXT};
-    border: 1px solid {SURFACE_0};
-    border-radius: 6px;
+    border: 1px solid {SURFACE_1};
+    border-radius: 10px;
     font-family: "Cascadia Code", "JetBrains Mono", "Consolas", "Menlo", monospace;
     font-size: 10pt;
-    padding: 12px;
+    padding: 14px;
     selection-background-color: {MAUVE};
     selection-color: {CRUST};
+}}
+
+QPlainTextEdit#preview:focus {{
+    border-color: {LAVENDER};
 }}
 
 QComboBox::drop-down {{
@@ -150,50 +260,79 @@ QComboBox QAbstractItemView {{
 }}
 
 QPushButton {{
-    background-color: {SURFACE_1};
+    background-color: {SURFACE_0};
     color: {TEXT};
-    border: 1px solid {SURFACE_2};
-    border-radius: 6px;
-    padding: 7px 16px;
-    font-weight: 500;
+    border: 1px solid {SURFACE_1};
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-weight: 650;
 }}
 
 QPushButton:hover {{
-    background-color: {SURFACE_2};
-    border: 1px solid {OVERLAY_0};
+    background-color: {SURFACE_1};
+    border: 1px solid {SURFACE_2};
 }}
 
 QPushButton:pressed {{
+    background-color: {MANTLE};
+    padding-top: 9px;
+    padding-bottom: 7px;
+}}
+
+QPushButton:focus {{
+    border: 1px solid {LAVENDER};
+}}
+
+QPushButton#secondary {{
+    background-color: {MANTLE};
+    color: {SUBTEXT_1};
+}}
+
+QPushButton#secondary:hover {{
     background-color: {SURFACE_0};
+    color: {TEXT};
 }}
 
 QPushButton#primary {{
-    background-color: {MAUVE};
+    background-color: {LAVENDER};
     color: {CRUST};
-    border: 1px solid {MAUVE};
-    font-weight: 600;
+    border: 1px solid {LAVENDER};
+    font-weight: 750;
 }}
 
 QPushButton#primary:hover {{
-    background-color: {LAVENDER};
+    background-color: {BLUE};
+    border-color: {BLUE};
 }}
 
 QPushButton#primary:pressed {{
-    background-color: {BLUE};
+    background-color: {MAUVE};
 }}
 
 QCheckBox {{
     color: {TEXT};
     spacing: 8px;
-    padding: 2px 0;
+    padding: 6px 0;
+}}
+
+QCheckBox#compact_checkbox {{
+    color: {SUBTEXT_0};
+    font-size: 9pt;
+    padding: 0;
+}}
+
+QCheckBox#compact_checkbox::indicator {{
+    width: 15px;
+    height: 15px;
+    border-radius: 4px;
 }}
 
 QCheckBox::indicator {{
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     border: 1px solid {SURFACE_2};
-    border-radius: 4px;
-    background-color: {SURFACE_0};
+    border-radius: 5px;
+    background-color: {MANTLE};
 }}
 
 QCheckBox::indicator:hover {{
@@ -201,8 +340,8 @@ QCheckBox::indicator:hover {{
 }}
 
 QCheckBox::indicator:checked {{
-    background-color: {MAUVE};
-    border: 1px solid {MAUVE};
+    background-color: {LAVENDER};
+    border: 1px solid {LAVENDER};
     image: none;
 }}
 
@@ -211,31 +350,39 @@ QCheckBox::indicator:checked::after {{
     content: "✓";
 }}
 
-QListWidget {{
+QListWidget#template_list {{
     background-color: {MANTLE};
-    border: 1px solid {SURFACE_0};
-    border-radius: 6px;
-    padding: 4px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 2px;
     outline: 0;
 }}
 
-QListWidget::item {{
+QListWidget#template_list::item {{
     padding: 8px 10px;
-    border-radius: 4px;
+    border-radius: 8px;
+    color: {SUBTEXT_1};
+    margin: 2px 0;
+}}
+
+QListWidget#template_list::item:hover {{
+    background-color: {SURFACE_0};
     color: {TEXT};
 }}
 
-QListWidget::item:hover {{
+QListWidget#template_list::item:selected {{
     background-color: {SURFACE_0};
-}}
-
-QListWidget::item:selected {{
-    background-color: {MAUVE};
-    color: {CRUST};
-    font-weight: 600;
+    border: 1px solid {SURFACE_2};
+    color: {TEXT};
+    font-weight: 650;
 }}
 
 QScrollArea {{
+    background-color: {BASE};
+    border: 0;
+}}
+
+QScrollArea#panel {{
     background-color: {BASE};
     border: 0;
 }}
@@ -288,6 +435,7 @@ QStatusBar {{
     background-color: {MANTLE};
     color: {SUBTEXT_1};
     border-top: 1px solid {SURFACE_0};
+    padding: 2px 8px;
 }}
 
 QStatusBar::item {{
