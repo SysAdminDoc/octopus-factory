@@ -47,3 +47,11 @@ id_ecdsa*
 .factory/
 *-lockout
 provider-fallbacks.log
+
+# Markdown files local-only (except README)
+*.md
+!README.md
+
+# Markdown files local-only (except README)
+*.md
+!README.md
