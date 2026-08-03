@@ -53,6 +53,14 @@ Added `mise.toml` pins for the factory verification/security tools and extended
 `factory-doctor.sh --fix-hints` with explicit Windows, macOS, Debian/Ubuntu,
 and container recovery commands plus WindowsApps shim detection.
 
+### Added — Durable phase graph and operation journal
+
+Added `config/workflows/factory.graph.json` and `factory-graph.sh` commands for
+graph validation, next-node selection, atomic state marking, and node contract
+inspection. Operation IDs are reserved before side effects; destructive history
+rewrites, force-pushes, major dependency drift, and release publishing require
+explicit graph approvals.
+
 ### Added — `tools/prompt-builder/` GUI helper application
 
 A companion PyQt6 desktop app that assembles factory prompts via a form + live preview, ending in a one-click clipboard copy. Lives at `tools/prompt-builder/` so prompt templates stay in sync with `prompts/examples.md` and the canonical recipes.

@@ -1,0 +1,572 @@
+{
+  "schema_version": 1,
+  "graph_id": "factory-loop",
+  "version": "1.0.0",
+  "description": "Durable phase graph for the bash-first octopus-factory recipe.",
+  "entrypoints": [
+    "preflight"
+  ],
+  "terminal_nodes": [
+    "complete",
+    "blocked"
+  ],
+  "nodes": [
+    {
+      "id": "preflight",
+      "description": "Initialize run state, inspect repository policy, and verify provider/tooling readiness.",
+      "prerequisites": [],
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_seconds": 0,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [],
+      "rollback_handler": null,
+      "required_artifacts": [
+        ".factory/runs/{run_id}/preflight.json"
+      ],
+      "interrupts": [],
+      "transitions": {
+        "success": "wip_adoption",
+        "failure": "blocked"
+      }
+    },
+    {
+      "id": "wip_adoption",
+      "description": "Adopt or record the existing worktree state before autonomous edits.",
+      "prerequisites": [
+        "preflight"
+      ],
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_seconds": 0,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [
+        {
+          "id": "create-branch",
+          "description": "Create the isolated factory branch when the run policy requires one.",
+          "idempotency_key": "{run_id}:{node_id}:create-branch",
+          "rollback_handler": "delete_factory_branch"
+        },
+        {
+          "id": "record-worktree",
+          "description": "Record the baseline worktree and branch state.",
+          "idempotency_key": "{run_id}:{node_id}:record-worktree",
+          "rollback_handler": "remove_worktree_baseline"
+        }
+      ],
+      "rollback_handler": "restore_worktree_baseline",
+      "required_artifacts": [
+        ".factory/runs/{run_id}/worktree-baseline.json"
+      ],
+      "interrupts": [],
+      "transitions": {
+        "success": "ai_scrub",
+        "failure": "blocked"
+      }
+    },
+    {
+      "id": "ai_scrub",
+      "description": "Remove prohibited AI attribution or sensitive history only when explicitly requested.",
+      "prerequisites": [
+        "wip_adoption"
+      ],
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_seconds": 0,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [
+        {
+          "id": "rewrite-history",
+          "description": "Rewrite repository history using a local backup bundle.",
+          "idempotency_key": "{run_id}:{node_id}:rewrite-history",
+          "rollback_handler": "restore_filter_repo_bundle"
+        },
+        {
+          "id": "force-push",
+          "description": "Update the remote branch after a history rewrite.",
+          "idempotency_key": "{run_id}:{node_id}:force-push",
+          "rollback_handler": "restore_remote_backup_branch"
+        }
+      ],
+      "rollback_handler": "restore_filter_repo_bundle",
+      "required_artifacts": [
+        ".factory/runs/{run_id}/scrub-report.json",
+        ".factory/runs/{run_id}/history-backup.bundle"
+      ],
+      "interrupts": [
+        {
+          "id": "history-rewrite",
+          "description": "Approve destructive local history rewriting and its backup strategy.",
+          "approval_required": true,
+          "resume_event": "approved"
+        },
+        {
+          "id": "force-push",
+          "description": "Approve force-pushing rewritten history to the configured remote.",
+          "approval_required": true,
+          "resume_event": "approved"
+        }
+      ],
+      "transitions": {
+        "success": "research",
+        "failure": "blocked"
+      }
+    },
+    {
+      "id": "research",
+      "description": "Collect broad and repo-aware research with untrusted findings kept separate from instructions.",
+      "prerequisites": [
+        "ai_scrub"
+      ],
+      "retry_policy": {
+        "max_attempts": 2,
+        "backoff_seconds": 30,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [
+        {
+          "id": "write-research",
+          "description": "Write source-cited research outputs for the run.",
+          "idempotency_key": "{run_id}:{node_id}:write-research",
+          "rollback_handler": "remove_run_research_outputs"
+        }
+      ],
+      "rollback_handler": "remove_run_research_outputs",
+      "required_artifacts": [
+        ".factory/runs/{run_id}/research/"
+      ],
+      "interrupts": [],
+      "transitions": {
+        "success": "rubric",
+        "failure": "blocked"
+      }
+    },
+    {
+      "id": "rubric",
+      "description": "Pre-declare testable acceptance criteria and failure modes for each implementation task.",
+      "prerequisites": [
+        "research"
+      ],
+      "retry_policy": {
+        "max_attempts": 2,
+        "backoff_seconds": 15,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [
+        {
+          "id": "write-rubrics",
+          "description": "Write immutable per-task acceptance rubrics.",
+          "idempotency_key": "{run_id}:{node_id}:write-rubrics",
+          "rollback_handler": "remove_run_rubrics"
+        }
+      ],
+      "rollback_handler": "remove_run_rubrics",
+      "required_artifacts": [
+        ".factory/runs/{run_id}/rubrics/"
+      ],
+      "interrupts": [],
+      "transitions": {
+        "success": "implement",
+        "failure": "blocked"
+      }
+    },
+    {
+      "id": "implement",
+      "description": "Implement bounded tasks against the pre-declared rubrics with tests and atomic commits.",
+      "prerequisites": [
+        "rubric"
+      ],
+      "retry_policy": {
+        "max_attempts": 3,
+        "backoff_seconds": 30,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [
+        {
+          "id": "write-worktree",
+          "description": "Modify the target worktree for the selected task.",
+          "idempotency_key": "{run_id}:{node_id}:write-worktree",
+          "rollback_handler": "restore_task_checkpoint"
+        },
+        {
+          "id": "commit",
+          "description": "Create the task's conventional atomic commit.",
+          "idempotency_key": "{run_id}:{node_id}:commit",
+          "rollback_handler": "revert_task_commit"
+        }
+      ],
+      "rollback_handler": "restore_task_checkpoint",
+      "required_artifacts": [
+        ".factory/runs/{run_id}/implementation/",
+        ".factory/runs/{run_id}/implementation.json"
+      ],
+      "interrupts": [],
+      "transitions": {
+        "success": "audit",
+        "failure": "blocked"
+      }
+    },
+    {
+      "id": "audit",
+      "description": "Run independent grading, criticism, defense, secret, red-team, and CI posture checks.",
+      "prerequisites": [
+        "implement"
+      ],
+      "retry_policy": {
+        "max_attempts": 2,
+        "backoff_seconds": 30,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [
+        {
+          "id": "write-audit-report",
+          "description": "Persist machine-readable and human-readable audit evidence.",
+          "idempotency_key": "{run_id}:{node_id}:write-audit-report",
+          "rollback_handler": "remove_run_audit_outputs"
+        }
+      ],
+      "rollback_handler": "remove_run_audit_outputs",
+      "required_artifacts": [
+        ".factory/runs/{run_id}/audit/",
+        ".factory/runs/{run_id}/redteam/"
+      ],
+      "interrupts": [],
+      "transitions": {
+        "success": "modularization",
+        "failure": "blocked"
+      }
+    },
+    {
+      "id": "modularization",
+      "description": "Apply behavior-preserving modularization only where the audit and rubric justify it.",
+      "prerequisites": [
+        "audit"
+      ],
+      "retry_policy": {
+        "max_attempts": 2,
+        "backoff_seconds": 30,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [
+        {
+          "id": "refactor-worktree",
+          "description": "Refactor code while preserving the verified behavior contract.",
+          "idempotency_key": "{run_id}:{node_id}:refactor-worktree",
+          "rollback_handler": "restore_modularization_checkpoint"
+        }
+      ],
+      "rollback_handler": "restore_modularization_checkpoint",
+      "required_artifacts": [
+        ".factory/runs/{run_id}/modularization.json"
+      ],
+      "interrupts": [],
+      "transitions": {
+        "success": "ux",
+        "failure": "blocked"
+      }
+    },
+    {
+      "id": "ux",
+      "description": "Polish user-facing surfaces only when the target repository has a meaningful UI or CLI experience.",
+      "prerequisites": [
+        "modularization"
+      ],
+      "retry_policy": {
+        "max_attempts": 2,
+        "backoff_seconds": 15,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [
+        {
+          "id": "polish-interface",
+          "description": "Apply scoped UX changes covered by the task rubric.",
+          "idempotency_key": "{run_id}:{node_id}:polish-interface",
+          "rollback_handler": "restore_ux_checkpoint"
+        }
+      ],
+      "rollback_handler": "restore_ux_checkpoint",
+      "required_artifacts": [
+        ".factory/runs/{run_id}/ux.json"
+      ],
+      "interrupts": [],
+      "transitions": {
+        "success": "theming",
+        "failure": "blocked"
+      }
+    },
+    {
+      "id": "theming",
+      "description": "Apply visual or presentation refinements only when the project exposes those surfaces.",
+      "prerequisites": [
+        "ux"
+      ],
+      "retry_policy": {
+        "max_attempts": 2,
+        "backoff_seconds": 15,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [
+        {
+          "id": "polish-theme",
+          "description": "Apply scoped theming changes covered by the task rubric.",
+          "idempotency_key": "{run_id}:{node_id}:polish-theme",
+          "rollback_handler": "restore_theming_checkpoint"
+        }
+      ],
+      "rollback_handler": "restore_theming_checkpoint",
+      "required_artifacts": [
+        ".factory/runs/{run_id}/theming.json"
+      ],
+      "interrupts": [],
+      "transitions": {
+        "success": "dependency_scan",
+        "failure": "blocked"
+      }
+    },
+    {
+      "id": "dependency_scan",
+      "description": "Scan dependencies and isolate major-version upgrades for explicit approval.",
+      "prerequisites": [
+        "theming"
+      ],
+      "retry_policy": {
+        "max_attempts": 2,
+        "backoff_seconds": 30,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [
+        {
+          "id": "dependency-upgrade",
+          "description": "Apply an approved dependency change and regenerate lock artifacts.",
+          "idempotency_key": "{run_id}:{node_id}:dependency-upgrade",
+          "rollback_handler": "restore_dependency_lockfiles"
+        }
+      ],
+      "rollback_handler": "restore_dependency_lockfiles",
+      "required_artifacts": [
+        ".factory/runs/{run_id}/dependency-scan.json"
+      ],
+      "interrupts": [
+        {
+          "id": "major-dependency-drift",
+          "description": "Approve a dependency upgrade with major-version drift before changing lockfiles.",
+          "approval_required": true,
+          "resume_event": "approved"
+        }
+      ],
+      "transitions": {
+        "success": "doc_sync",
+        "failure": "blocked"
+      }
+    },
+    {
+      "id": "doc_sync",
+      "description": "Synchronize roadmap, changelog, README, and generated metadata with verified work.",
+      "prerequisites": [
+        "dependency_scan"
+      ],
+      "retry_policy": {
+        "max_attempts": 2,
+        "backoff_seconds": 15,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [
+        {
+          "id": "write-docs",
+          "description": "Update only the allowed documentation surfaces for the release.",
+          "idempotency_key": "{run_id}:{node_id}:write-docs",
+          "rollback_handler": "restore_documentation_checkpoint"
+        }
+      ],
+      "rollback_handler": "restore_documentation_checkpoint",
+      "required_artifacts": [
+        ".factory/runs/{run_id}/docs.json"
+      ],
+      "interrupts": [],
+      "transitions": {
+        "success": "commit_gate",
+        "failure": "blocked"
+      }
+    },
+    {
+      "id": "commit_gate",
+      "description": "Run secret, preset, test, and attribution gates before the final branch update.",
+      "prerequisites": [
+        "doc_sync"
+      ],
+      "retry_policy": {
+        "max_attempts": 2,
+        "backoff_seconds": 30,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [
+        {
+          "id": "push",
+          "description": "Push the verified conventional commit to the configured branch.",
+          "idempotency_key": "{run_id}:{node_id}:push",
+          "rollback_handler": "revert_remote_commit"
+        },
+        {
+          "id": "create-issue",
+          "description": "Create a tracked issue for an explicitly deferred finding, when required.",
+          "idempotency_key": "{run_id}:{node_id}:create-issue",
+          "rollback_handler": "close_created_issue"
+        }
+      ],
+      "rollback_handler": "revert_remote_commit",
+      "required_artifacts": [
+        ".factory/runs/{run_id}/commit-gate.json"
+      ],
+      "interrupts": [],
+      "transitions": {
+        "success": "regression_check",
+        "failure": "blocked"
+      }
+    },
+    {
+      "id": "regression_check",
+      "description": "Confirm the pushed result and verify no unrelated regression remains in the worktree.",
+      "prerequisites": [
+        "commit_gate"
+      ],
+      "retry_policy": {
+        "max_attempts": 2,
+        "backoff_seconds": 15,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [],
+      "rollback_handler": null,
+      "required_artifacts": [
+        ".factory/runs/{run_id}/regression.json"
+      ],
+      "interrupts": [],
+      "transitions": {
+        "success": "release_gate",
+        "failure": "blocked"
+      }
+    },
+    {
+      "id": "release_gate",
+      "description": "Confirm version synchronization, release artifacts, and security evidence are complete.",
+      "prerequisites": [
+        "regression_check"
+      ],
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_seconds": 0,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [],
+      "rollback_handler": null,
+      "required_artifacts": [
+        ".factory/runs/{run_id}/release-gate.json"
+      ],
+      "interrupts": [],
+      "transitions": {
+        "success": "release",
+        "failure": "blocked"
+      }
+    },
+    {
+      "id": "release",
+      "description": "Publish the release only after the explicit human approval interrupt is recorded.",
+      "prerequisites": [
+        "release_gate"
+      ],
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_seconds": 0,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [
+        {
+          "id": "create-release-tag",
+          "description": "Create the immutable version tag for the approved release.",
+          "idempotency_key": "{run_id}:{node_id}:create-release-tag",
+          "rollback_handler": "delete_unpublished_release_tag"
+        },
+        {
+          "id": "publish-release",
+          "description": "Publish the versioned tag and release artifacts.",
+          "idempotency_key": "{run_id}:{node_id}:publish-release",
+          "rollback_handler": "unpublish-release-or-block"
+        }
+      ],
+      "rollback_handler": "unpublish-release-or-block",
+      "required_artifacts": [
+        ".factory/runs/{run_id}/release.json"
+      ],
+      "interrupts": [
+        {
+          "id": "release-publish",
+          "description": "Approve publishing the tag and release artifacts to the configured remote.",
+          "approval_required": true,
+          "resume_event": "approved"
+        }
+      ],
+      "transitions": {
+        "success": "complete",
+        "failure": "blocked"
+      }
+    },
+    {
+      "id": "complete",
+      "description": "Record a successful durable workflow completion.",
+      "prerequisites": [
+        "release"
+      ],
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_seconds": 0,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [],
+      "rollback_handler": null,
+      "required_artifacts": [
+        ".factory/runs/{run_id}/complete.json"
+      ],
+      "interrupts": [],
+      "transitions": {},
+      "terminal": true
+    },
+    {
+      "id": "blocked",
+      "description": "Stop safely with the state, operation journal, and blocker evidence preserved.",
+      "prerequisites": [],
+      "retry_policy": {
+        "max_attempts": 1,
+        "backoff_seconds": 0,
+        "on_exhausted": "blocked"
+      },
+      "idempotency_key": "{run_id}:{node_id}:{attempt}",
+      "side_effects": [],
+      "rollback_handler": null,
+      "required_artifacts": [
+        ".factory/runs/{run_id}/blocked.json"
+      ],
+      "interrupts": [],
+      "transitions": {},
+      "terminal": true
+    }
+  ]
+}

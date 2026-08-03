@@ -263,12 +263,36 @@ just redteam                  # Q1 agent-safety contract gate
 just redteam-nightly          # full coding-agent collection
 just dep-scan                 # osv-scanner CVE pass
 just checkpoint cp_init       # initialize shadow-git checkpoint store
+just graph validate            # validate the durable phase graph
+just graph explain release     # inspect release side effects and approval gates
 just version                  # show version + dependency status
 ```
 
 Recipes are thin pass-throughs to `bin/<script>.sh` — every flag the underlying script accepts works after the recipe name (`just doctor --json`, `just codex audit --model gpt-5.4`, etc.). No magic, just discoverability.
 
 Install: `brew install just` / `apt install just` / `winget install Casey.Just`.
+
+### Durable phase graph
+
+`config/workflows/factory.graph.json` is the inspectable source for phase order,
+prerequisites, retry budgets, required artifacts, rollback handlers, and
+idempotent side-effect keys. The companion state journal is atomically updated
+under `.factory/workflow-state.json`:
+
+```bash
+just graph validate
+just graph next .factory/workflow-state.json --json
+just graph mark .factory/workflow-state.json preflight running \
+  --side-effect record-worktree
+# perform the side effect only after the reservation succeeds
+just graph mark .factory/workflow-state.json preflight succeeded \
+  --side-effect record-worktree
+```
+
+History rewrites, force-pushes, major dependency drift, and release publishing
+are graph interrupts. `mark ... running` exits with an approval-required result
+until the matching `--approve <interrupt-id>` is recorded. Reusing an operation
+ID is idempotent and never replays a completed operation.
 
 ### Routing modes
 

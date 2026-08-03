@@ -89,6 +89,11 @@ checkpoint *ARGS:
 state *ARGS:
     @{{bin}}/state-store.sh {{ARGS}}
 
+# Durable phase graph: validate, select next node, reserve/mark operations, explain nodes.
+[group('state')]
+graph *ARGS:
+    @{{bin}}/factory-graph.sh {{ARGS}}
+
 # Show or estimate run cost.
 [group('state')]
 cost *ARGS:
