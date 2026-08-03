@@ -33,6 +33,13 @@ recording, and JSON/HTML reports under `.factory/runs/<run_id>/redteam/`.
 The doctor, overnight wrapper, workflow quality gates, and prompt templates now
 surface the agent-safety gate.
 
+### Added — Portable verification lanes
+
+Added native and container verification recipes, a reproducible dev-container
+image, and optional Dagger functions for Bats, directive lint, preset drift,
+and prompt-builder smoke checks. Container execution disables runtime network
+access after the image build.
+
 ### Added — `tools/prompt-builder/` GUI helper application
 
 A companion PyQt6 desktop app that assembles factory prompts via a form + live preview, ending in a one-click clipboard copy. Lives at `tools/prompt-builder/` so prompt templates stay in sync with `prompts/examples.md` and the canonical recipes.

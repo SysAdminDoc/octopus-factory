@@ -1,0 +1,5 @@
+{
+  "name": "octopus-factory-verification",
+  "sdk": "python",
+  "source": "."
+}

@@ -190,6 +190,21 @@ The default adapter is deterministic and credential-free. Nightly runs accept
 to the same artifact checks. Reports and exported trajectories are kept under
 `.factory/evals/`.
 
+### Portable verification
+
+The native lane runs Bats, directive lint, preset drift checks, and the
+prompt-builder Python smoke. The container lane uses the same commands inside
+the checked-in `.devcontainer` image with runtime networking disabled:
+
+```bash
+just verify-native
+just verify-container
+```
+
+The same functions are exposed through the optional `.dagger/` module. Native
+checks remain the fast default; the container and dev-container paths are the
+parity fallback when Windows or macOS tool discovery is unreliable.
+
 ### Agent-safety red-team gate
 
 Q1 runs use the deterministic local contract gate by default and keep both

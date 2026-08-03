@@ -176,6 +176,16 @@ eval-agent *ARGS:
 eval-agent-nightly *ARGS:
     @{{bin}}/eval-agent.sh nightly {{replace(ARGS, "\\", "/")}}
 
+# Run native checks without depending on just's shebang handling.
+[group('dev')]
+verify-native *ARGS:
+    @{{bin}}/verify.sh native {{replace(ARGS, "\\", "/")}}
+
+# Build and run the hermetic verification image with network disabled.
+[group('dev')]
+verify-container *ARGS:
+    @{{bin}}/verify.sh container {{replace(ARGS, "\\", "/")}}
+
 # Validate YAML frontmatter on every directive + recipe.
 [group('dev')]
 lint-directives *ARGS:

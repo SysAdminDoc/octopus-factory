@@ -1,0 +1,21 @@
+{
+  "name": "octopus-factory verification",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "workspaceFolder": "/workspace",
+  "remoteUser": "root",
+  "containerEnv": {
+    "OCTOPUS_CONTAINER_VERIFICATION": "1"
+  },
+  "postCreateCommand": "bash bin/verify.sh native",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

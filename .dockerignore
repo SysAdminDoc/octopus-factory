@@ -1,0 +1,8 @@
+.git
+.factory
+.devcontainer
+.dagger
+node_modules
+__pycache__
+*.pyc
+tests/prompts/results.json
