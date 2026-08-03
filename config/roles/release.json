@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "role": "release",
+  "description": "Assemble and publish a verified release only after all approval gates are recorded.",
+  "allowed_tools": ["repo.read", "repo.search", "shell.tests", "shell.build", "shell.secret_scan", "shell.ci_posture", "git.status", "git.commit", "git.push", "git.tag", "release.publish"],
+  "required_inputs": ["task", "release_gate", "security_report", "context_pack"],
+  "required_artifacts": ["release_report", "artifact_hashes", "version_sync_report"],
+  "output_schema": {"$ref": "role-output.schema.json"},
+  "escalation_triggers": ["version_surface_mismatch", "artifact_build_failure", "approval_missing", "remote_rejected", "signing_required"],
+  "no_go_zones": ["publish_without_approval", "force_push", "real_code_signing", "secret_output", "ignore_failed_gate"],
+  "handoff": {
+    "next_roles": ["none", "security"],
+    "preserve_fields": ["task", "rubric", "required_artifacts", "output_schema_ref", "forbidden_side_effects"],
+    "fallback_instruction": "Replay the exact structured release task and output schema; never publish from an unverified retry."
+  }
+}

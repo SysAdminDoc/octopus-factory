@@ -18,7 +18,8 @@ class OctopusFactory:
                     "-lc",
                     "apt-get update && apt-get install --yes --no-install-recommends "
                     "bash bats ca-certificates git jq just shellcheck && "
-                    "rm -rf /var/lib/apt/lists/*",
+                    "rm -rf /var/lib/apt/lists/* && "
+                    "python3 -m pip install --no-cache-dir PyYAML==6.0.2",
                 ]
             )
             .with_directory("/workspace", source)

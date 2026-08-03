@@ -82,6 +82,11 @@ compress *ARGS:
 context-pack *ARGS:
     @{{bin}}/context-pack.sh {{replace(ARGS, "\\", "/")}}
 
+# Validate a JSON/YAML role result against config/roles/*.json.
+[group('tools')]
+validate-role-output *ARGS:
+    @python3 {{bin}}/validate-role-output.py {{replace(ARGS, "\\", "/")}}
+
 # ─── State / recovery ─────────────────────────────────────────────────────────
 
 # Checkpoint operations (shadow-git): cp_init / cp_snapshot <phase> / cp_rollback <phase>.

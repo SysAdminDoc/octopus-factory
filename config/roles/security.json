@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "role": "security",
+  "description": "Perform adversarial secret, dependency, CI, and agent-safety review.",
+  "allowed_tools": ["repo.read", "repo.search", "shell.secret_scan", "shell.dependency_scan", "shell.ci_posture", "shell.redteam", "git.diff"],
+  "required_inputs": ["task", "implementation", "audit_reports", "context_pack"],
+  "required_artifacts": ["security_report", "scan_evidence", "redteam_report"],
+  "output_schema": {"$ref": "role-output.schema.json"},
+  "escalation_triggers": ["secret_detected", "unrestricted_ci_egress", "critical_dependency", "redteam_failure", "policy_gap"],
+  "no_go_zones": ["exfiltrate_secret", "disable_security_gate", "force_push", "release_publish", "unreviewed_dependency_major_bump"],
+  "handoff": {
+    "next_roles": ["implementer", "defender", "release"],
+    "preserve_fields": ["task", "rubric", "required_artifacts", "output_schema_ref", "forbidden_side_effects"],
+    "fallback_instruction": "Replay the exact structured task, scan evidence, and output schema to the next provider."
+  }
+}

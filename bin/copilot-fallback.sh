@@ -33,6 +33,8 @@ LOCKOUT_FILE="${HOME}/.claude-octopus/state/copilot-lockout"
 LOCKOUT_TTL="${OCTOPUS_COPILOT_LOCKOUT_TTL:-3600}"
 FALLBACK_LOG="${HOME}/.claude-octopus/provider-fallbacks.log"
 RUN_ID="${OCTOPUS_RUN_ID:-fallback-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+ROLE="${OCTOPUS_ROLE:-}"
+ROLE_CONTRACTS_DIR="${OCTOPUS_ROLE_CONTRACTS_DIR:-$SCRIPT_DIR/../config/roles}"
 mkdir -p "$(dirname "$LOCKOUT_FILE")" "$(dirname "$FALLBACK_LOG")"
 
 _trajectory_emit() {
@@ -57,14 +59,41 @@ _trajectory_emit() {
         >/dev/null 2>&1 || true
 }
 
-# Cache stdin (Copilot consumes it once; retries need replay)
+# Cache stdin (Copilot consumes it once; retries need replay). When a role is
+# supplied, envelope the task with the role contract before the first provider
+# sees it so the fallback receives byte-for-byte the same structured handoff.
+raw_prompt_file=$(mktemp -t "octo-copilot-raw-prompt.XXXXXX")
 prompt_file=$(mktemp -t "octo-copilot-prompt.XXXXXX")
 err_file=$(mktemp -t "octo-copilot-err.XXXXXX")
-trap 'rm -f "$prompt_file" "$err_file"' EXIT INT TERM
+trap 'rm -f "$raw_prompt_file" "$prompt_file" "$err_file"' EXIT INT TERM
 if [[ ! -t 0 ]]; then
-    cat > "$prompt_file"
+    cat > "$raw_prompt_file"
 else
-    : > "$prompt_file"
+    : > "$raw_prompt_file"
+fi
+
+if [[ -n "$ROLE" ]]; then
+    if [[ ! "$ROLE" =~ ^[a-z][a-z0-9_-]*$ ]]; then
+        echo "copilot-fallback: invalid OCTOPUS_ROLE '$ROLE'" >&2
+        exit 1
+    fi
+    ROLE_CONTRACT="$ROLE_CONTRACTS_DIR/$ROLE.json"
+    if [[ ! -f "$ROLE_CONTRACT" ]]; then
+        echo "copilot-fallback: role contract missing: $ROLE_CONTRACT" >&2
+        exit 1
+    fi
+    {
+        printf '%s\n' "ROLE HANDOFF CONTRACT — preserve this envelope across provider fallback"
+        printf '%s\n' "role: $ROLE"
+        printf '%s\n' "contract_file: config/roles/$ROLE.json"
+        printf '%s\n' "Return machine-readable output matching the contract's output_schema."
+        printf '%s\n' '--- contract JSON ---'
+        cat "$ROLE_CONTRACT"
+        printf '%s\n' '--- exact task input (preserve verbatim) ---'
+        cat "$raw_prompt_file"
+    } > "$prompt_file"
+else
+    cp "$raw_prompt_file" "$prompt_file"
 fi
 
 # Determine target Codex model from Copilot args (so copilot-codex falls to a Codex variant)

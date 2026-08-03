@@ -68,6 +68,13 @@ repository maps, dependency/build/test surfaces, UI files, recent history and
 roadmap excerpts, plus filename-based risk hotspots. Outputs are redacted and
 written atomically under `.factory/context/`.
 
+### Added — Data-driven role contracts and fallback handoffs
+
+Added strict implementer, critic, defender, security, UX, release, and
+researcher contracts plus JSON/YAML output validation. Role-aware Copilot
+fallback now envelopes and replays the same structured task and output schema
+to Codex when quota fallback occurs.
+
 ### Added — `tools/prompt-builder/` GUI helper application
 
 A companion PyQt6 desktop app that assembles factory prompts via a form + live preview, ending in a one-click clipboard copy. Lives at `tools/prompt-builder/` so prompt templates stay in sync with `prompts/examples.md` and the canonical recipes.

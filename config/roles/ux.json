@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "role": "ux",
+  "description": "Improve user-facing interaction and accessibility with invisible, evidence-backed verification.",
+  "allowed_tools": ["repo.read", "repo.search", "repo.edit", "shell.tests", "shell.offscreen_ui", "git.diff", "git.status"],
+  "required_inputs": ["task", "rubric", "context_pack", "ui_surface"],
+  "required_artifacts": ["ux_report", "offscreen_evidence", "updated_diff"],
+  "output_schema": {"$ref": "role-output.schema.json"},
+  "escalation_triggers": ["visual_verification_unavailable", "accessibility_regression", "brand_decision_needed", "interactive_input_required"],
+  "no_go_zones": ["foreground_window", "pointer_injection", "clipboard_mutation", "audio_or_notification", "release_publish"],
+  "handoff": {
+    "next_roles": ["critic", "defender", "security"],
+    "preserve_fields": ["task", "rubric", "required_artifacts", "output_schema_ref", "forbidden_side_effects"],
+    "fallback_instruction": "Replay the exact structured task, UI evidence, and output schema to the next provider."
+  }
+}

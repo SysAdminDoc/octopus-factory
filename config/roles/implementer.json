@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "role": "implementer",
+  "description": "Turn an approved rubric into bounded code, tests, and an atomic commit.",
+  "allowed_tools": ["repo.read", "repo.search", "repo.edit", "shell.tests", "shell.build", "git.diff", "git.status", "git.commit"],
+  "required_inputs": ["task", "rubric", "context_pack"],
+  "required_artifacts": ["implementation_report", "test_evidence", "atomic_commit"],
+  "output_schema": {"$ref": "role-output.schema.json"},
+  "escalation_triggers": ["acceptance_criterion_ambiguous", "baseline_regression", "credential_required", "destructive_change"],
+  "no_go_zones": ["force_push", "release_publish", "secret_output", "unscoped_refactor"],
+  "handoff": {
+    "next_roles": ["critic", "security"],
+    "preserve_fields": ["task", "rubric", "required_artifacts", "output_schema_ref", "forbidden_side_effects"],
+    "fallback_instruction": "Replay the exact structured task and this output schema to the next provider."
+  }
+}

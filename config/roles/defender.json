@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "role": "defender",
+  "description": "Fix valid critic findings or rebut them with concrete evidence.",
+  "allowed_tools": ["repo.read", "repo.search", "repo.edit", "shell.tests", "shell.build", "git.diff", "git.status", "git.commit"],
+  "required_inputs": ["task", "rubric", "implementation", "critic_report", "context_pack"],
+  "required_artifacts": ["defense_report", "updated_diff", "test_evidence"],
+  "output_schema": {"$ref": "role-output.schema.json"},
+  "escalation_triggers": ["critic_finding_unresolvable", "regression_after_fix", "rubric_change_needed", "credential_required"],
+  "no_go_zones": ["force_push", "release_publish", "silent_rubric_change", "secret_output"],
+  "handoff": {
+    "next_roles": ["security", "release", "critic"],
+    "preserve_fields": ["task", "rubric", "required_artifacts", "output_schema_ref", "forbidden_side_effects"],
+    "fallback_instruction": "Replay the exact structured task, critic findings, and output schema to the next provider."
+  }
+}

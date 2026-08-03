@@ -263,6 +263,7 @@ just redteam                  # Q1 agent-safety contract gate
 just redteam-nightly          # full coding-agent collection
 just dep-scan                 # osv-scanner CVE pass
 just context-pack /path/to/repo # local repository map + context pack
+just validate-role-output --validate-contracts # validate role contract set
 just checkpoint cp_init       # initialize shadow-git checkpoint store
 just graph validate            # validate the durable phase graph
 just graph explain release     # inspect release side effects and approval gates
@@ -309,6 +310,26 @@ repository commands or network requests are executed.
 just context-pack /path/to/repo
 just context-pack /path/to/repo --json
 ```
+
+### Role contracts and fallback handoffs
+
+`config/roles/` defines implementer, critic, defender, security, UX, release,
+and researcher boundaries as data. Each contract declares allowed tools,
+required inputs/artifacts, escalation triggers, no-go zones, a strict output
+schema, and permitted next roles. Validate a provider result before accepting
+it:
+
+```bash
+just validate-role-output --validate-contracts
+just validate-role-output implementer result.json --json
+just validate-role-output critic result.yaml --format yaml
+```
+
+Set `OCTOPUS_ROLE=implementer` when using `copilot-fallback.sh` and the wrapper
+adds the contract envelope to the task once, caches that exact prompt, and
+replays it unchanged to Codex if Copilot exhausts quota. This preserves the
+task ID, required artifacts, forbidden side effects, and output schema across
+provider handoffs.
 
 ### Routing modes
 

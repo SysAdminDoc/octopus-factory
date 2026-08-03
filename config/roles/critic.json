@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "role": "critic",
+  "description": "Attack an implementation against its rubric and produce evidence-backed findings.",
+  "allowed_tools": ["repo.read", "repo.search", "shell.tests", "shell.build", "git.diff", "git.status"],
+  "required_inputs": ["task", "rubric", "implementation", "context_pack"],
+  "required_artifacts": ["critic_report", "test_evidence"],
+  "output_schema": {"$ref": "role-output.schema.json"},
+  "escalation_triggers": ["critical_finding", "missing_test_evidence", "security_boundary_uncertain", "provider_degradation"],
+  "no_go_zones": ["edit_source", "commit", "push", "secret_output", "waive_finding_without_evidence"],
+  "handoff": {
+    "next_roles": ["defender", "security", "implementer"],
+    "preserve_fields": ["task", "rubric", "required_artifacts", "output_schema_ref", "forbidden_side_effects"],
+    "fallback_instruction": "Replay the exact structured task, implementation evidence, and output schema to the next provider."
+  }
+}

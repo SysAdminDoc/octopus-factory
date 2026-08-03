@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "role",
+    "contract_version",
+    "status",
+    "summary",
+    "task",
+    "artifacts",
+    "tests",
+    "findings",
+    "handoff"
+  ],
+  "properties": {
+    "role": {
+      "type": "string",
+      "min_length": 1
+    },
+    "contract_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "fail",
+        "uncertain",
+        "blocked"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "min_length": 1
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "goal"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "min_length": 1
+        },
+        "goal": {
+          "type": "string",
+          "min_length": 1
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "kind"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "min_length": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "source",
+              "test",
+              "report",
+              "documentation",
+              "release",
+              "other"
+            ]
+          },
+          "sha256": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "status",
+          "evidence"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "min_length": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "uncertain",
+              "skipped"
+            ]
+          },
+          "evidence": {
+            "type": "string",
+            "min_length": 1
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "severity",
+          "message",
+          "evidence"
+        ],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "info"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "min_length": 1
+          },
+          "evidence": {
+            "type": "string",
+            "min_length": 1
+          }
+        }
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "next_role",
+        "task_id",
+        "required_artifacts",
+        "output_schema_ref",
+        "forbidden_side_effects"
+      ],
+      "properties": {
+        "next_role": {
+          "type": "string",
+          "min_length": 1
+        },
+        "task_id": {
+          "type": "string",
+          "min_length": 1
+        },
+        "required_artifacts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "output_schema_ref": {
+          "type": "string",
+          "min_length": 1
+        },
+        "forbidden_side_effects": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
