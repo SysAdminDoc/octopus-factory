@@ -1,0 +1,6 @@
+# Keep executable and task-runner sources parseable by Git Bash, WSL, and CI.
+*.sh text eol=lf
+*.py text eol=lf
+*.bats text eol=lf
+justfile text eol=lf
+.githooks/* text eol=lf

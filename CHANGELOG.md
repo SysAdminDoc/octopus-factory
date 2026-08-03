@@ -15,6 +15,16 @@ evaluation exports, summaries, and non-executable replay plans. Overnight,
 Codex, OTel usage, state-store, shadow-checkpoint, and provider-fallback paths
 emit their relevant lifecycle events.
 
+### Added — Local agent-evaluation contract harness
+
+`just eval-agent` now runs five deterministic synthetic repositories covering a
+broken Python CLI, stale UI copy, vulnerable dependency pin, malformed roadmap,
+and dirty worktree. The harness verifies commits, tests, roadmap progress,
+secret-scan invocation, rollback after an injected failure, and trajectory
+exports in each eval record. `just eval-agent-nightly` expands the same contract
+across provider labels and accepts an external adapter for real provider calls;
+the built-in adapter never requires credentials.
+
 ### Added — `tools/prompt-builder/` GUI helper application
 
 A companion PyQt6 desktop app that assembles factory prompts via a form + live preview, ending in a one-click clipboard copy. Lives at `tools/prompt-builder/` so prompt templates stay in sync with `prompts/examples.md` and the canonical recipes.

@@ -9,7 +9,7 @@
 # Usage:
 #   factory-trajectory.sh init [<run_id>]
 #   factory-trajectory.sh emit <event> [--phase P] [--iteration N]
-#       [--actor NAME] [--payload JSON]
+#       [--actor NAME] [--payload JSON | --payload-env NAME]
 #   factory-trajectory.sh show [<run_id>] [--json] [--last N] [--event NAME]
 #   factory-trajectory.sh summarize [<run_id>] [--json]
 #   factory-trajectory.sh export-eval [<run_id>] [<output.json>]
@@ -233,6 +233,7 @@ cmd_emit() {
     local iteration=""
     local actor=""
     local payload="{}"
+    local payload_env=""
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -248,11 +249,23 @@ cmd_emit() {
             --payload)
                 [[ $# -ge 2 ]] || { echo "factory-trajectory: --payload requires a value" >&2; return 1; }
                 payload="$2"; shift 2 ;;
+            --payload-env)
+                [[ $# -ge 2 ]] || { echo "factory-trajectory: --payload-env requires a variable name" >&2; return 1; }
+                if [[ ! "$2" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+                    echo "factory-trajectory: --payload-env requires a valid environment variable name" >&2
+                    return 1
+                fi
+                payload_env="$2"; shift 2 ;;
             *)
                 echo "factory-trajectory: unknown emit option: $1" >&2
                 return 1 ;;
         esac
     done
+
+    if [[ -n "$payload_env" ]]; then
+        payload="${!payload_env-}"
+        [[ -n "$payload" ]] || { echo "factory-trajectory: payload environment variable is empty: $payload_env" >&2; return 1; }
+    fi
 
     if [[ "$event" != "run_start" ]]; then
         _ensure_run_started

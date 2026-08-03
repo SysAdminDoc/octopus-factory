@@ -1,0 +1,7 @@
+{
+  "id": "stale-ui",
+  "description": "A static UI with stale product copy.",
+  "repair": "stale-ui",
+  "files": ["index.html", "tests/test_ui.py"],
+  "roadmap_source": "roadmap.txt"
+}

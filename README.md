@@ -173,6 +173,23 @@ just trajectory replay-plan my-run
 
 Replay plans are descriptive only; they never execute recorded commands.
 
+### Agent-evaluation harness
+
+The local contract gate creates five disposable synthetic repositories and
+checks the artifacts a factory run must leave behind:
+
+```bash
+just eval-agent
+just eval-agent-nightly --providers copilot-sonnet,codex-direct,gemini-flash
+```
+
+The default adapter is deterministic and credential-free. Nightly runs accept
+`--adapter PATH`; adapters receive `OCTOPUS_EVAL_REPO`,
+`OCTOPUS_EVAL_SCENARIO`, `OCTOPUS_EVAL_PROVIDER`, `OCTOPUS_EVAL_SECRET_SCAN`,
+`OCTOPUS_EVAL_EVENT_LOG`, and `OCTOPUS_EVAL_TRAJECTORY_ROOT`, then remain subject
+to the same artifact checks. Reports and exported trajectories are kept under
+`.factory/evals/`.
+
 ## Use
 
 ### The default invocation (one prompt, zero fill-in)

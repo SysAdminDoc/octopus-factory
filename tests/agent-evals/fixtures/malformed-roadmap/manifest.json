@@ -1,0 +1,7 @@
+{
+  "id": "malformed-roadmap",
+  "description": "A repository whose roadmap cannot be parsed until repaired.",
+  "repair": "malformed-roadmap",
+  "files": ["tests/test_roadmap.py"],
+  "roadmap_source": "roadmap.txt"
+}

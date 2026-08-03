@@ -1,0 +1,7 @@
+{
+  "id": "broken-python-cli",
+  "description": "A tiny Python CLI whose add operation is wrong.",
+  "repair": "broken-python-cli",
+  "files": ["cli.py", "tests/test_cli.py"],
+  "roadmap_source": "roadmap.txt"
+}

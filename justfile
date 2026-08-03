@@ -156,6 +156,16 @@ prompt-builder-build:
 test-bats *ARGS:
     @bats tests/bats/ {{ARGS}}
 
+# Run the deterministic local agent-evaluation contract harness.
+[group('dev')]
+eval-agent *ARGS:
+    @{{bin}}/eval-agent.sh run {{replace(ARGS, "\\", "/")}}
+
+# Run the provider-matrix harness. Supply --adapter for real provider calls.
+[group('dev')]
+eval-agent-nightly *ARGS:
+    @{{bin}}/eval-agent.sh nightly {{replace(ARGS, "\\", "/")}}
+
 # Validate YAML frontmatter on every directive + recipe.
 [group('dev')]
 lint-directives *ARGS:

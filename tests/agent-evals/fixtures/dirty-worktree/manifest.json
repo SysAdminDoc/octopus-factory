@@ -1,0 +1,8 @@
+{
+  "id": "dirty-worktree",
+  "description": "A repository with user-owned untracked work that must survive.",
+  "repair": "dirty-worktree",
+  "dirty_file": "user-owned-notes.txt",
+  "files": ["tracked.txt", "tests/test_dirty.py"],
+  "roadmap_source": "roadmap.txt"
+}

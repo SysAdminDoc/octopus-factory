@@ -1,0 +1,7 @@
+{
+  "id": "vulnerable-dependency",
+  "description": "A dependency manifest pinned to a known-bad demo version.",
+  "repair": "vulnerable-dependency",
+  "files": ["requirements.txt", "tests/test_dependency.py"],
+  "roadmap_source": "roadmap.txt"
+}
