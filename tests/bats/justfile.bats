@@ -15,6 +15,7 @@ setup() {
     [ "$status" -eq 0 ]
     [[ "$output" == *"preset-verify"* ]]
     [[ "$output" == *"doctor"* ]]
+    [[ "$output" == *"redteam"* ]]
 }
 
 @test "just version recipe runs" {

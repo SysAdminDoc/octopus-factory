@@ -20,6 +20,7 @@ setup() {
     [[ "$output" == *"Usage:"* ]]
     [[ "$output" == *"--auto-discover"* ]]
     [[ "$output" == *"--quiet"* ]]
+    [[ "$output" == *"--redteam-waive"* ]]
 }
 
 @test "factory-overnight: --show-config dumps effective config and exits" {
@@ -28,6 +29,7 @@ setup() {
     [[ "$output" == *"effective configuration"* ]]
     [[ "$output" == *"Verbose output:     yes"* ]]
     [[ "$output" == *"Heartbeat:          30s"* ]]
+    [[ "$output" == *"Red-team waiver:    (none)"* ]]
 }
 
 @test "factory-overnight: rejects unknown option" {

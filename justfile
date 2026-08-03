@@ -52,6 +52,16 @@ codex PHASE *ARGS:
 secret-scan *ARGS:
     @{{bin}}/secret-scan.sh {{ARGS}}
 
+# Run the Q1 coding-agent safety gate (local contract by default; add --promptfoo for a provider scan).
+[group('phases')]
+redteam *ARGS:
+    @{{bin}}/redteam-gate.sh run {{replace(ARGS, "\\", "/")}}
+
+# Run the full coding-agent collection used by nightly/manual red-team runs.
+[group('phases')]
+redteam-nightly *ARGS:
+    @{{bin}}/redteam-gate.sh run --profile all {{replace(ARGS, "\\", "/")}}
+
 # Run CVE / dependency scan via osv-scanner.
 [group('phases')]
 dep-scan *ARGS:

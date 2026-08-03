@@ -69,6 +69,15 @@ CODEX DISPATCH (single-session and orchestrated alike, v0.5.1+):
 - This restores the cross-family audit signal that was silently absent
   from every single-session run before v0.5.1.
 
+Q1 AGENT-SAFETY RED-TEAM GATE:
+- After implementation and before declaring the cycle clean, run
+  `bash ~/repos/octopus-factory/bin/redteam-gate.sh run <repo> --run-id <run-id> --profile core --json`.
+- The gate must be clean. If it fails, halt and fix the finding; only an
+  explicit operator-approved `--waive "reason"` may allow continuation.
+- JSON and HTML reports belong under `<repo>/.factory/runs/<run-id>/redteam/`.
+- Pull-request/default coverage is `coding-agent:core`; nightly/manual
+  coverage is `coding-agent:all` (use `just redteam-nightly`).
+
 OFFLOAD POLICY (non-negotiable):
 - The canonical routing preset is `copilot-heavy`. Verify that preset is
   active via `cat ~/.claude-octopus/config/providers.json | grep _mode`. If

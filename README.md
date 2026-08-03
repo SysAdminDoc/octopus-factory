@@ -190,6 +190,23 @@ The default adapter is deterministic and credential-free. Nightly runs accept
 to the same artifact checks. Reports and exported trajectories are kept under
 `.factory/evals/`.
 
+### Agent-safety red-team gate
+
+Q1 runs use the deterministic local contract gate by default and keep both
+machine-readable and HTML reports under
+`.factory/runs/<run_id>/redteam/`:
+
+```bash
+just redteam                         # PR/default coding-agent:core
+just redteam-nightly                 # nightly/manual coding-agent:all
+just redteam --profile all --promptfoo
+```
+
+The optional Promptfoo scan requires an isolated adapter command in
+`OCTOPUS_FACTORY_REDTEAM_TARGET_COMMAND`. A failed gate halts the overnight
+wrapper; continue only with an explicit rationale such as
+`--redteam-waive "SEC-123: reviewed"`.
+
 ## Use
 
 ### The default invocation (one prompt, zero fill-in)
@@ -223,6 +240,8 @@ just doctor                   # pre-flight diagnostic
 just route copilot-heavy      # swap routing preset
 just codex audit              # dispatch the audit phase to direct Codex
 just secret-scan              # gitleaks pass on working tree
+just redteam                  # Q1 agent-safety contract gate
+just redteam-nightly          # full coding-agent collection
 just dep-scan                 # osv-scanner CVE pass
 just checkpoint cp_init       # initialize shadow-git checkpoint store
 just version                  # show version + dependency status

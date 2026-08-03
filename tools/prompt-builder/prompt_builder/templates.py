@@ -105,6 +105,14 @@ CODEX DISPATCH:
   signal. On non-zero exit (auth/quota/timeout/refusal/internal), log the
   degradation and continue with master Claude doing the audit instead.
 
+Q1 AGENT-SAFETY RED-TEAM GATE:
+- After implementation and before declaring the cycle clean, run
+  `bash ~/repos/octopus-factory/bin/redteam-gate.sh run <repo> --run-id <run-id> --profile core --json`.
+- The gate must be clean. A failed gate halts unless an operator records an
+  explicit `--waive "reason"` rationale.
+- Store JSON and HTML reports under `<repo>/.factory/runs/<run-id>/redteam/`.
+- Use `coding-agent:all` for nightly/manual coverage via `just redteam-nightly`.
+
 OFFLOAD POLICY:
 - Routing preset is `{preset}`. Bulk research, synthesis, implementation,
   counter-passes, UX, theming, audit all route through Copilot

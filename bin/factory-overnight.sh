@@ -95,6 +95,8 @@
 #                             uncommitted changes.
 #   --require-remote          Pre-flight: refuse to start if any repo has no
 #                             `origin` remote configured.
+#   --redteam-waive REASON    Record an explicit Q1 agent-safety waiver for
+#                             this run (otherwise a failed gate halts).
 #   --show-config             Print the effective configuration and exit. Use
 #                             before kicking off long runs to confirm flags.
 #
@@ -173,6 +175,7 @@ RESUME_RUN_ID=""
 FAIL_FAST=false
 REQUIRE_CLEAN_TREE=false
 REQUIRE_REMOTE=false
+REDTEAM_WAIVER=""
 SHOW_CONFIG=false
 
 REPOS=()
@@ -342,6 +345,8 @@ while [[ $# -gt 0 ]]; do
         --fail-fast)              FAIL_FAST=true; shift ;;
         --require-clean-tree)     REQUIRE_CLEAN_TREE=true; shift ;;
         --require-remote)         REQUIRE_REMOTE=true; shift ;;
+        --redteam-waive)
+            require_value "$1" "${2:-}"; REDTEAM_WAIVER="$2"; shift 2 ;;
         --show-config)            SHOW_CONFIG=true; shift ;;
         -h|--help)                sed -n '2,135p' "$0"; exit 0 ;;
         -*)                       echo "factory-overnight: unknown option: $1" >&2; exit 1 ;;
@@ -540,6 +545,7 @@ Resume from:        ${RESUME_RUN_ID:-(fresh)}
 Fail-fast:          $FAIL_FAST
 Require clean tree: $REQUIRE_CLEAN_TREE
 Require remote:     $REQUIRE_REMOTE
+Red-team waiver:    ${REDTEAM_WAIVER:-(none)}
 Model override:     ${MODEL_OVERRIDE:-(default)}
 Dry-run:            $DRY_RUN
 Logs:               $RUN_DIR
@@ -907,6 +913,9 @@ overnight-cycle profile (--overnight flag semantics from the recipe):
   docs/research/iter-*-sources.md).
 - Audit phases (L3 Critic, U1, T1, Q1, Q2, Phase 5 self-audit) MUST shell
   out to bin/codex-direct.sh for cross-family signal.
+- Q1 agent safety MUST run bin/redteam-gate.sh after the cycle. A failed
+  red-team gate halts the overnight run unless --redteam-waive records a
+  concrete operator rationale. Reports live under .factory/runs/$RUN_ID/redteam/.
 - DO NOT run Q3 release on a routine cycle — the wrapper will manually
   trigger releases via --release on a designated cycle if explicitly
   scheduled. Patch-bump commits + push, no GitHub Release.
@@ -1008,6 +1017,46 @@ EOF
         CUM_SPEND=$(awk -v c="$CUM_SPEND" -v s="$CYCLE_SPEND" 'BEGIN { printf "%.2f", c + s }')
     fi
 
+    # ─── Q1 agent-safety red-team gate ────────────────────────────────────
+    REDTEAM_RC=0
+    REDTEAM_STATUS="skipped"
+    REDTEAM_REPORT=""
+    if $DRY_RUN; then
+        log_event "$C_CYN" "Q1" "agent-safety red-team skipped in dry-run mode"
+        trajectory_emit "$TARGET_REPO" "$RUN_ID" gate_result Q1 1 overnight \
+            "$(jq -cn '{gate:"agent-safety-redteam",status:"skipped",reason:"dry-run"}')"
+    else
+        REDTEAM_ARGS=(run "$TARGET_REPO" --run-id "$RUN_ID" --profile core --json)
+        if [[ -n "$REDTEAM_WAIVER" ]]; then
+            REDTEAM_ARGS+=(--waive "$REDTEAM_WAIVER")
+        fi
+        REDTEAM_OUTPUT=""
+        if REDTEAM_OUTPUT=$(bash "$SCRIPT_DIR/redteam-gate.sh" "${REDTEAM_ARGS[@]}" 2>&1); then
+            REDTEAM_RC=0
+        else
+            REDTEAM_RC=$?
+        fi
+        REDTEAM_CAPTURE="$RUN_DIR/cycle-$(printf '%03d' "$CYCLE_NUM")-redteam.json"
+        printf '%s\n' "$REDTEAM_OUTPUT" > "$REDTEAM_CAPTURE"
+        REDTEAM_STATUS=$(printf '%s' "$REDTEAM_OUTPUT" | jq -r '.status // "fail"' 2>/dev/null || echo fail)
+        REDTEAM_REPORT=$(printf '%s' "$REDTEAM_OUTPUT" | jq -r '.report_file // empty' 2>/dev/null || true)
+        if [[ "$REDTEAM_RC" -eq 0 ]]; then
+            REDTEAM_COLOR="$C_GRN"
+        else
+            REDTEAM_COLOR="$C_RED"
+        fi
+        log_event "$REDTEAM_COLOR" "Q1" \
+            "agent-safety red-team status=$REDTEAM_STATUS report=${REDTEAM_REPORT:-unavailable}"
+        trajectory_emit "$TARGET_REPO" "$RUN_ID" gate_result Q1 1 overnight \
+            "$(jq -cn --arg status "$REDTEAM_STATUS" --arg report "$REDTEAM_REPORT" \
+                --argjson waived "$([[ -n "$REDTEAM_WAIVER" ]] && echo true || echo false)" \
+                '{gate:"agent-safety-redteam",status:$status,profile:"core",report_file:$report,waived:$waived}')"
+        if [[ "$REDTEAM_RC" -ne 0 ]]; then
+            CYCLE_RC=1
+            CYCLE_OUTCOME="redteam-blocked"
+        fi
+    fi
+
     CYCLES_DONE=$(( CYCLES_DONE + 1 ))
     LAST_CYCLE="$TARGET_REPO ($CYCLE_OUTCOME)"
     LAST_RESULT="rc=$CYCLE_RC outcome=$CYCLE_OUTCOME"
@@ -1031,6 +1080,12 @@ EOF
             --arg cycle "$CYCLE_NUM" '{decision:$decision,repo_path:$repo,cycle:($cycle|tonumber)}')"
 
     healthcheck_ping "$CYCLE_RC"
+
+    if [[ "$REDTEAM_RC" -ne 0 ]]; then
+        END_REASON="Q1 agent-safety red-team gate failed"
+        log_event "$C_RED" "STOP" "$END_REASON"
+        break
+    fi
 
     # ─── Fail-fast ─────────────────────────────────────────────────────────
     if $FAIL_FAST && [[ "$CYCLE_RC" -ne 0 ]]; then

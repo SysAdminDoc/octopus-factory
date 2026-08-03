@@ -8,6 +8,7 @@
 #   4. Active preset's routing actually invokes the binaries you care about
 #   5. ImageMagick + git + gh CLI present (release-build prerequisites)
 #   6. ~/.claude-octopus/config/providers.json matches one of the shipped presets
+#   7. Promptfoo coding-agent red-team collections are available for Q1
 #
 # Output is plain English diagnostics. Exit 0 if everything's wired; exit 1 if
 # any HARD problem (missing CLI, broken auth, bad JSON); exit 2 if SOFT warnings
@@ -23,6 +24,9 @@
 # 30 minutes wondering why Codex never fires.
 
 set -uo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+FACTORY_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 
 QUIET=false
 JSON=false
@@ -254,6 +258,30 @@ if [[ -f "$PROVIDERS_JSON" ]] && command -v jq &>/dev/null; then
     else
         ok "preset routes $DIRECT_CLAUDE phase(s) directly to Claude — Max quota will be consumed"
     fi
+fi
+
+# ---------- Section 6: coding-agent red-team support ----------
+REDTEAM_CONFIG="$FACTORY_ROOT/tests/redteam/promptfooconfig.yaml"
+if [[ -f "$REDTEAM_CONFIG" ]]; then
+    ok "Q1 agent-safety red-team config present"
+else
+    fail "Q1 agent-safety red-team config missing at $REDTEAM_CONFIG"
+fi
+
+PROMPTFOO_BIN="$(command -v promptfoo 2>/dev/null || command -v promptfoo.cmd 2>/dev/null || true)"
+if [[ -n "$PROMPTFOO_BIN" ]]; then
+    PROMPTFOO_VERSION="$($PROMPTFOO_BIN --version 2>&1 | head -1)"
+    PROMPTFOO_PLUGINS="$($PROMPTFOO_BIN redteam plugins --ids-only 2>/dev/null || true)"
+    if [[ "$PROMPTFOO_PLUGINS" == *"coding-agent:core"* &&
+        "$PROMPTFOO_PLUGINS" == *"coding-agent:all"* ]]; then
+        ok "promptfoo red-team support installed ($PROMPTFOO_VERSION)"
+    else
+        warn "promptfoo is installed but coding-agent red-team collections are unavailable"
+        warn "  → upgrade promptfoo or run the deterministic local contract gate only"
+    fi
+else
+    warn "promptfoo red-team support not installed — Q1 uses the local contract gate"
+    warn "  → install with: npm install --global promptfoo"
 fi
 
 # ---------- Output ----------

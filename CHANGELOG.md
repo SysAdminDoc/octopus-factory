@@ -25,6 +25,14 @@ exports in each eval record. `just eval-agent-nightly` expands the same contract
 across provider labels and accepts an external adapter for real provider calls;
 the built-in adapter never requires credentials.
 
+### Added — Q1 coding-agent red-team gate
+
+Added `bin/redteam-gate.sh` with deterministic contract coverage, optional
+Promptfoo `coding-agent:core` / `coding-agent:all` execution, explicit waiver
+recording, and JSON/HTML reports under `.factory/runs/<run_id>/redteam/`.
+The doctor, overnight wrapper, workflow quality gates, and prompt templates now
+surface the agent-safety gate.
+
 ### Added — `tools/prompt-builder/` GUI helper application
 
 A companion PyQt6 desktop app that assembles factory prompts via a form + live preview, ending in a one-click clipboard copy. Lives at `tools/prompt-builder/` so prompt templates stay in sync with `prompts/examples.md` and the canonical recipes.

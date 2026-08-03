@@ -41,6 +41,7 @@ assert data["status"] == "broken"
 assert data["exit_code"] == 1
 assert data["warnings"], data
 assert data["failures"], data
+assert any("red-team" in item.lower() for item in data["warnings"]), data
 '
 
     rm -rf "$tmp"

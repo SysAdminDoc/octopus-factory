@@ -257,6 +257,14 @@ quality_gates:
       - "Sacred-cow files not touched without allowance (directive-circuit-breakers.md)"
       - "OWASP top 10 addressed in audit phase"
     on_failure: halt
+  agent_safety_redteam:
+    description: "Coding-agent red-team safety validation"
+    threshold: 1.0
+    checks:
+      - "Q1 agent-safety red-team report is clean"
+      - "Any failed red-team gate has an explicit recorded waiver"
+      - "Reports are stored under .factory/runs/<run_id>/redteam/"
+    on_failure: halt
   best_practices:
     description: "Code quality standards"
     threshold: 0.80
