@@ -62,6 +62,11 @@ redteam *ARGS:
 redteam-nightly *ARGS:
     @{{bin}}/redteam-gate.sh run --profile all {{replace(ARGS, "\\", "/")}}
 
+# Inspect GitHub Actions permissions, action pinning, egress, and Scorecard readiness.
+[group('phases')]
+ci-posture *ARGS:
+    @{{bin}}/ci-posture.sh scan {{replace(ARGS, "\\", "/")}}
+
 # Run CVE / dependency scan via osv-scanner.
 [group('phases')]
 dep-scan *ARGS:

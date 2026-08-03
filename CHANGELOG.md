@@ -40,6 +40,13 @@ image, and optional Dagger functions for Bats, directive lint, preset drift,
 and prompt-builder smoke checks. Container execution disables runtime network
 access after the image build.
 
+### Added — CI supply-chain posture gate
+
+Added a pinned OpenSSF Scorecard workflow with Harden-Runner in audit mode,
+SARIF upload, and `ci-posture` inspection for workflow permissions, action SHA
+pinning, egress commands, and Scorecard readiness. Q1 red-team reports now
+include the target repository's posture result.
+
 ### Added — `tools/prompt-builder/` GUI helper application
 
 A companion PyQt6 desktop app that assembles factory prompts via a form + live preview, ending in a one-click clipboard copy. Lives at `tools/prompt-builder/` so prompt templates stay in sync with `prompts/examples.md` and the canonical recipes.

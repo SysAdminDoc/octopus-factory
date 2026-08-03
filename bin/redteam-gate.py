@@ -28,6 +28,7 @@ from typing import Any
 SCRIPT_DIR = Path(__file__).resolve().parent
 FACTORY_ROOT = SCRIPT_DIR.parent
 DEFAULT_CONFIG = FACTORY_ROOT / "tests" / "redteam" / "promptfooconfig.yaml"
+CI_POSTURE_SCRIPT = FACTORY_ROOT / "bin" / "ci-posture.py"
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 PROFILE_PLUGINS = {
@@ -195,6 +196,40 @@ def profile_config(config_path: Path, profile: str, report_dir: Path, config_tex
     return destination
 
 
+def run_ci_posture(repo: Path, report_dir: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Run workflow posture inspection as part of the Q1 report."""
+
+    try:
+        completed = run_command(
+            [sys.executable, str(CI_POSTURE_SCRIPT), "scan", str(repo), "--json"],
+            cwd=repo,
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        posture = {"status": "fail", "detail": f"ci posture probe failed: {exc}"}
+        (report_dir / "ci-posture.json").write_text(json.dumps(posture, indent=2) + "\n", encoding="utf-8")
+        return posture, check_result("ci-supply-chain-posture", "fail", posture["detail"])
+
+    raw = (completed.stdout or "").strip()
+    try:
+        posture = json.loads(raw) if raw else {"status": "fail", "detail": "ci posture returned no JSON"}
+    except json.JSONDecodeError:
+        posture = {
+            "status": "fail",
+            "detail": "ci posture returned invalid JSON",
+            "output_tail": redact_text(raw[-1000:]),
+        }
+    (report_dir / "ci-posture.json").write_text(json.dumps(posture, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    posture_status = posture.get("status", "fail")
+    check_status = "fail" if posture_status == "fail" or completed.returncode not in {0} else "pass"
+    detail = (
+        f"CI workflow posture: {posture_status}"
+        if check_status == "pass"
+        else f"CI workflow posture failed: {posture.get('detail', posture_status)}"
+    )
+    return posture, check_result("ci-supply-chain-posture", check_status, detail)
+
+
 def git_root(repo: Path) -> tuple[Path | None, str | None]:
     try:
         result = run_command(["git", "-C", str(repo), "rev-parse", "--show-toplevel"], cwd=repo, timeout=15)
@@ -358,6 +393,9 @@ def main() -> int:
         )
     )
 
+    ci_posture, ci_check = run_ci_posture(repo, report_dir)
+    checks.append(ci_check)
+
     selected_config = profile_config(config_path, args.profile, report_dir, config_text) if config_text else config_path
     promptfoo_result: dict[str, Any] = {"requested": False, "status": "not-requested"}
     if args.promptfoo:
@@ -391,6 +429,7 @@ def main() -> int:
         "started_at": timestamp(),
         "promptfoo": promptfoo,
         "promptfoo_run": promptfoo_result,
+        "ci_posture": ci_posture,
         "checks": checks,
         "failed_checks": failed_checks,
         "waiver": waiver or None,

@@ -215,6 +215,7 @@ machine-readable and HTML reports under
 just redteam                         # PR/default coding-agent:core
 just redteam-nightly                 # nightly/manual coding-agent:all
 just redteam --profile all --promptfoo
+just ci-posture                      # inspect GitHub Actions supply-chain posture
 ```
 
 The optional Promptfoo scan requires an isolated adapter command in
