@@ -36,6 +36,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 _default_log() {
     local project="${OCTOPUS_PROJECT:-$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")}"
     local timestamp="${OCTOPUS_RUN_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}"
@@ -44,6 +46,26 @@ _default_log() {
 
 LOG="${OCTOPUS_OTEL_LOG:-$(_default_log)}"
 RUN_ID="${OCTOPUS_RUN_ID:-factory-$(date +%s)}"
+
+_trajectory_emit() {
+    local event="$1"
+    local phase="$2"
+    local iteration="$3"
+    local actor="$4"
+    local payload="$5"
+    local repo_path
+
+    [[ "${OCTOPUS_TRAJECTORY_DISABLED:-}" =~ ^(1|true|yes)$ ]] && return 0
+    [[ -f "$SCRIPT_DIR/factory-trajectory.sh" ]] || return 0
+    command -v jq >/dev/null 2>&1 || return 0
+    repo_path=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+    OCTOPUS_RUN_ID="$RUN_ID" \
+        OCTOPUS_TRAJECTORY_REPO="$repo_path" \
+        OCTOPUS_TRAJECTORY_SOURCE=otel-log \
+        bash "$SCRIPT_DIR/factory-trajectory.sh" emit "$event" \
+        --phase "$phase" --iteration "$iteration" --actor "$actor" \
+        --payload "$payload" >/dev/null 2>&1 || true
+}
 
 _ensure_log() {
     mkdir -p "$(dirname "$LOG")"
@@ -120,6 +142,17 @@ cmd_usage() {
         "factory.iteration": $iter,
         "factory.cost_usd": ($cost | tonumber? // 0)
     }')"
+
+    _trajectory_emit model_selection "$phase" "$iter" "$role" "$(jq -nc \
+        --arg provider "$provider" \
+        --arg model "$model" \
+        --arg role "$role" \
+        --arg input "$in_tok" \
+        --arg output "$out_tok" \
+        --arg cache_read "$cache_r" \
+        --arg cache_write "$cache_c" \
+        --arg cost "$cost" \
+        '{provider:$provider,model:$model,role:$role,input_tokens:($input|tonumber),output_tokens:($output|tonumber),cache_read_tokens:($cache_read|tonumber),cache_creation_tokens:($cache_write|tonumber),cost_usd:($cost|tonumber)}')"
 }
 
 cmd_breaker() {
@@ -136,6 +169,10 @@ cmd_breaker() {
         "factory.breaker.detail": $d,
         "factory.phase": $phase
     }')"
+
+    _trajectory_emit gate_result "${OCTOPUS_FACTORY_PHASE:-}" "${OCTOPUS_FACTORY_ITERATION:-}" "circuit-breaker" "$(jq -nc \
+        --arg name "$breaker" --arg action "$action" --arg detail "$detail" \
+        '{name:$name,status:"fail",action:$action,detail:$detail}')"
 }
 
 cmd_tail() {

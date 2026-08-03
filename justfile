@@ -84,6 +84,11 @@ cost *ARGS:
 log *ARGS:
     @{{bin}}/otel-log.sh {{ARGS}}
 
+# Append, inspect, summarize, export, or plan a factory run trajectory.
+[group('state')]
+trajectory *ARGS:
+    @{{bin}}/factory-trajectory.sh {{ARGS}}
+
 # ─── Tools ────────────────────────────────────────────────────────────────────
 
 # Lazy-load a directive into the current prompt context.

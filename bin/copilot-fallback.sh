@@ -27,10 +27,35 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 LOCKOUT_FILE="${HOME}/.claude-octopus/state/copilot-lockout"
 LOCKOUT_TTL="${OCTOPUS_COPILOT_LOCKOUT_TTL:-3600}"
 FALLBACK_LOG="${HOME}/.claude-octopus/provider-fallbacks.log"
+RUN_ID="${OCTOPUS_RUN_ID:-fallback-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 mkdir -p "$(dirname "$LOCKOUT_FILE")" "$(dirname "$FALLBACK_LOG")"
+
+_trajectory_emit() {
+    local reason="$1"
+    local from_provider="$2"
+    local to_provider="$3"
+    local model="$4"
+    local repo_path
+
+    [[ "${OCTOPUS_TRAJECTORY_DISABLED:-}" =~ ^(1|true|yes)$ ]] && return 0
+    [[ -f "$SCRIPT_DIR/factory-trajectory.sh" ]] || return 0
+    command -v jq >/dev/null 2>&1 || return 0
+    repo_path=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+    OCTOPUS_RUN_ID="$RUN_ID" \
+        OCTOPUS_TRAJECTORY_REPO="$repo_path" \
+        OCTOPUS_TRAJECTORY_SOURCE=copilot-fallback \
+        bash "$SCRIPT_DIR/factory-trajectory.sh" emit fallback \
+        --phase "${OCTOPUS_FACTORY_PHASE:-fallback}" --actor copilot-fallback \
+        --payload "$(jq -cn --arg reason "$reason" --arg from "$from_provider" \
+            --arg to "$to_provider" --arg model "$model" \
+            '{reason:$reason,from_provider:$from,to_provider:$to,model:$model}')" \
+        >/dev/null 2>&1 || true
+}
 
 # Cache stdin (Copilot consumes it once; retries need replay)
 prompt_file=$(mktemp -t "octo-copilot-prompt.XXXXXX")
@@ -107,6 +132,7 @@ _dispatch_codex() {
 # Path 1: lockout active — skip Copilot entirely
 if _is_locked_out; then
     _log_fallback "lockout-active-skipping-copilot-using-${fallback_codex_model}"
+    _trajectory_emit lockout-active copilot codex "$fallback_codex_model"
     echo "INFO: Copilot lockout active (TTL ${LOCKOUT_TTL}s); using Codex ${fallback_codex_model}" >&2
     _dispatch_codex "$fallback_codex_model"
     exit $?
@@ -129,6 +155,7 @@ quota_patterns='quota.{0,20}exceeded|rate.{0,5}limit|premium.{0,5}request.{0,5}l
 if grep -qiE "$quota_patterns" "$err_file" 2>/dev/null; then
     _lock_copilot "quota-exhausted-$(date -u +%FT%TZ)"
     _log_fallback "quota-exhausted-falling-back-to-codex-${fallback_codex_model}"
+    _trajectory_emit quota-exhausted copilot codex "$fallback_codex_model"
     matched=$(grep -iE "$quota_patterns" "$err_file" | head -1 | tr -d '\n' | cut -c1-120)
     echo "WARN: Copilot quota exhausted (matched: ${matched})" >&2
     echo "WARN: Locking out Copilot for ${LOCKOUT_TTL}s; falling back to Codex ${fallback_codex_model}" >&2

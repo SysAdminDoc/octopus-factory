@@ -143,6 +143,8 @@ fi
 
 set -uo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 # ─── Defaults ───────────────────────────────────────────────────────────────
 SLEEP_SEC=60
 CYCLE_TIMEOUT_SEC=1800
@@ -174,6 +176,27 @@ REQUIRE_REMOTE=false
 SHOW_CONFIG=false
 
 REPOS=()
+
+trajectory_emit() {
+    local repo="$1"
+    local run_id="$2"
+    local event="$3"
+    local phase="$4"
+    local iteration="$5"
+    local actor="$6"
+    local payload="${7:-{}}"
+
+    [[ "${OCTOPUS_TRAJECTORY_DISABLED:-}" =~ ^(1|true|yes)$ ]] && return 0
+    [[ -f "$SCRIPT_DIR/factory-trajectory.sh" ]] || return 0
+    command -v jq >/dev/null 2>&1 || return 0
+    [[ -n "$payload" ]] || payload='{}'
+    OCTOPUS_RUN_ID="$run_id" \
+        OCTOPUS_TRAJECTORY_REPO="$repo" \
+        OCTOPUS_TRAJECTORY_SOURCE=factory-overnight \
+        bash "$SCRIPT_DIR/factory-trajectory.sh" emit "$event" \
+        --phase "$phase" --iteration "$iteration" --actor "$actor" \
+        --payload "$payload" >/dev/null 2>&1 || true
+}
 
 require_value() {
     local opt="$1"
@@ -552,6 +575,10 @@ handle_signal() {
     local sig="$1"
     END_REASON="received $sig"
     log "STOP: $END_REASON (will write summary then exit)"
+    if [[ -n "${TARGET_REPO:-}" ]]; then
+        trajectory_emit "$TARGET_REPO" "$RUN_ID" user_interruption "" "" overnight \
+            "$(jq -cn --arg signal "$sig" --arg reason "$END_REASON" '{signal:$signal,reason:$reason}')"
+    fi
     [[ -n "$HEARTBEAT_PID" ]] && kill "$HEARTBEAT_PID" 2>/dev/null || true
     [[ -n "$CHILD_PID" ]] && kill -TERM "$CHILD_PID" 2>/dev/null || true
 }
@@ -722,6 +749,12 @@ LAST_CYCLE=""
 LAST_RESULT=""
 END_REASON=""
 
+for repo in "${REPOS[@]}"; do
+    trajectory_emit "$repo" "$RUN_ID" run_start overnight "" overnight \
+        "$(jq -cn --arg repo "$repo" --arg mode overnight --arg run "$RUN_ID" \
+            '{repo_path:$repo,mode:$mode,run_id:$run,source:"factory-overnight"}')"
+done
+
 write_status
 
 # Banner — give the user a clear "I'm starting" signal even before cycle 1.
@@ -891,6 +924,17 @@ Begin.
 EOF
 )
 
+    PROMPT_DIGEST="$(printf '%s' "$CYCLE_PROMPT" | sha256sum 2>/dev/null | awk '{print $1}' || true)"
+    trajectory_emit "$TARGET_REPO" "$RUN_ID" prompt_dispatch L1 1 overnight \
+        "$(jq -cn --arg repo "$TARGET_REPO" --arg cycle "$CYCLE_NUM" \
+            --arg budget "$PER_CYCLE_BUDGET" --arg digest "$PROMPT_DIGEST" \
+            '{repo_path:$repo,cycle:($cycle|tonumber),budget_usd:($budget|tonumber),prompt_sha256:$digest,overnight:true}')"
+    trajectory_emit "$TARGET_REPO" "$RUN_ID" tool_command L1 1 overnight \
+        "$(jq -cn --arg command claude --arg cycle "$CYCLE_NUM" \
+            --arg timeout "$CYCLE_TIMEOUT_SEC" --arg log "$CYCLE_LOG" \
+            --argjson dry_run "$($DRY_RUN && echo true || echo false)" \
+            '{command:$command,cycle:($cycle|tonumber),timeout_seconds:($timeout|tonumber),log_file:$log,dry_run:$dry_run}')"
+
     if $DRY_RUN; then
         log_event "$C_CYN" "DRY-RUN" "would invoke: claude -p --max-budget-usd $PER_CYCLE_BUDGET ..."
         log_event "$C_CYN" "DRY-RUN" "cycle log: $CYCLE_LOG"
@@ -978,6 +1022,14 @@ EOF
     log_event "$OUTCOME_COLOR" "cycle $CYCLE_NUM" \
         "rc=$CYCLE_RC outcome=$CYCLE_OUTCOME spend≈\$$CYCLE_SPEND cum=\$$CUM_SPEND"
 
+    trajectory_emit "$TARGET_REPO" "$RUN_ID" command_output L1 1 overnight \
+        "$(jq -cn --arg rc "$CYCLE_RC" --arg outcome "$CYCLE_OUTCOME" \
+            --arg spend "$CYCLE_SPEND" --arg log "$CYCLE_LOG" \
+            '{exit_code:($rc|tonumber),outcome:$outcome,spend_usd:($spend|tonumber),log_file:$log}')"
+    trajectory_emit "$TARGET_REPO" "$RUN_ID" phase_decision L1 1 overnight \
+        "$(jq -cn --arg decision "$CYCLE_OUTCOME" --arg repo "$TARGET_REPO" \
+            --arg cycle "$CYCLE_NUM" '{decision:$decision,repo_path:$repo,cycle:($cycle|tonumber)}')"
+
     healthcheck_ping "$CYCLE_RC"
 
     # ─── Fail-fast ─────────────────────────────────────────────────────────
@@ -1044,6 +1096,13 @@ log "Summary:          $SUMMARY_FILE"
 
 write_status
 send_notification
+
+for repo in "${REPOS[@]}"; do
+    trajectory_emit "$repo" "$RUN_ID" run_end overnight "" overnight \
+        "$(jq -cn --arg status completed --arg reason "$END_REASON" \
+            --arg cycles "$CYCLES_DONE" --arg spend "$CUM_SPEND" \
+            '{status:$status,end_reason:$reason,cycles:($cycles|tonumber),spend_usd:($spend|tonumber),source:"factory-overnight"}')"
+done
 
 echo ""
 echo "Summary written to $SUMMARY_FILE"

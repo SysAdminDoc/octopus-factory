@@ -158,6 +158,21 @@ See `bin/install.sh` for the exact steps if you'd rather copy them by hand.
 
 Should print the active routing mode and a list of available presets.
 
+### Run trajectories
+
+Factory runs keep a machine-readable local ledger under
+`.factory/runs/<run_id>/trajectory.jsonl`. Emit and inspect events directly, or
+use the `just` wrapper:
+
+```bash
+just trajectory init my-run
+just trajectory summarize my-run --json
+just trajectory export-eval my-run .factory/my-run-eval.json
+just trajectory replay-plan my-run
+```
+
+Replay plans are descriptive only; they never execute recorded commands.
+
 ## Use
 
 ### The default invocation (one prompt, zero fill-in)
@@ -238,6 +253,7 @@ memory/
   reference/      — multi-account-rotation guide
 bin/
   octo-route.sh        — swap routing presets
+  factory-trajectory.sh — append and inspect machine-readable run ledgers
   ai-scrub.sh          — git history rewrite (removes AI attribution)
   copilot-fallback.sh  — Copilot wrapper with auto-fallback to Codex on quota error
   install.sh           — one-step installer

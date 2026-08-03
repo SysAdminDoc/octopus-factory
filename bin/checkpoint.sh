@@ -23,6 +23,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 _repo_root() {
     git rev-parse --show-toplevel 2>/dev/null || { echo "not a git repo" >&2; exit 1; }
 }
@@ -31,6 +33,23 @@ REPO="$(_repo_root)"
 SHADOW_DIR="${REPO}/.factory/shadow-git"
 SHADOW_GIT_ENV=(--git-dir="${SHADOW_DIR}" --work-tree="${REPO}")
 RUN_ID="${OCTOPUS_RUN_ID:-factory-$(date +%s)}"
+
+_trajectory_emit() {
+    local event="$1"
+    local phase="$2"
+    local iteration="$3"
+    local payload="$4"
+
+    [[ "${OCTOPUS_TRAJECTORY_DISABLED:-}" =~ ^(1|true|yes)$ ]] && return 0
+    [[ -f "$SCRIPT_DIR/factory-trajectory.sh" ]] || return 0
+    command -v jq >/dev/null 2>&1 || return 0
+    OCTOPUS_RUN_ID="$RUN_ID" \
+        OCTOPUS_TRAJECTORY_REPO="$REPO" \
+        OCTOPUS_TRAJECTORY_SOURCE=shadow-checkpoint \
+        bash "$SCRIPT_DIR/factory-trajectory.sh" emit "$event" \
+        --phase "$phase" --iteration "$iteration" --actor checkpoint \
+        --payload "$payload" >/dev/null 2>&1 || true
+}
 
 _ensure_shadow() {
     if [[ ! -d "$SHADOW_DIR" ]]; then
@@ -122,6 +141,10 @@ cmd_init() {
     fi
 
     echo "initialized: $SHADOW_DIR"
+    _trajectory_emit checkpoint "" "" "$(jq -cn \
+        --arg action init \
+        --arg shadow_dir "$SHADOW_DIR" \
+        '{action:$action,shadow_dir:$shadow_dir}')"
 }
 
 cmd_snapshot() {
@@ -141,6 +164,11 @@ cmd_snapshot() {
         local sha
         sha=$(git "${SHADOW_GIT_ENV[@]}" rev-parse --short HEAD)
         echo "snapshot: ${msg} (${sha})"
+        _trajectory_emit checkpoint "$phase" "$iter" "$(jq -cn \
+            --arg action snapshot \
+            --arg snapshot_id "$msg" \
+            --arg sha "$sha" \
+            '{action:$action,snapshot_id:$snapshot_id,shadow_sha:$sha}')"
     fi
 }
 
@@ -179,6 +207,10 @@ cmd_rollback() {
     # Restore worktree to the snapshot's tree state (no ref update on user's main git)
     git "${SHADOW_GIT_ENV[@]}" checkout "$sha" -- .
     echo "rolled back worktree to ${phase}/${iter} (${sha:0:7})"
+    _trajectory_emit checkpoint "$phase" "$iter" "$(jq -cn \
+        --arg action rollback \
+        --arg sha "$sha" \
+        '{action:$action,shadow_sha:$sha}')"
 }
 
 cmd_list() {

@@ -39,6 +39,8 @@
 
 set -uo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 PHASE=""
 MODEL_OVERRIDE=""
 CWD=""
@@ -100,9 +102,26 @@ mkdir -p "$LOG_DIR"
 
 ts() { date -u +%Y%m%dT%H%M%SZ; }
 TIMESTAMP="$(ts)"
-RUN_ID="codex-${PHASE}-${TIMESTAMP}-$$"
-TRANSCRIPT="$LOG_DIR/${RUN_ID}.jsonl"
-LAST_MSG="${OUT_FILE:-$LOG_DIR/${RUN_ID}.last.md}"
+CALL_ID="codex-${PHASE}-${TIMESTAMP}-$$"
+RUN_ID="${OCTOPUS_RUN_ID:-$CALL_ID}"
+TRANSCRIPT="$LOG_DIR/${CALL_ID}.jsonl"
+LAST_MSG="${OUT_FILE:-$LOG_DIR/${CALL_ID}.last.md}"
+
+_trajectory_emit() {
+    local event="$1"
+    local phase="$2"
+    local actor="$3"
+    local payload="$4"
+
+    [[ "${OCTOPUS_TRAJECTORY_DISABLED:-}" =~ ^(1|true|yes)$ ]] && return 0
+    [[ -f "$SCRIPT_DIR/factory-trajectory.sh" ]] || return 0
+    command -v jq >/dev/null 2>&1 || return 0
+    OCTOPUS_RUN_ID="$RUN_ID" \
+        OCTOPUS_TRAJECTORY_REPO="$WORKDIR" \
+        OCTOPUS_TRAJECTORY_SOURCE=codex-direct \
+        bash "$SCRIPT_DIR/factory-trajectory.sh" emit "$event" \
+        --phase "$phase" --actor "$actor" --payload "$payload" >/dev/null 2>&1 || true
+}
 
 # --- Pre-flight ---
 if ! command -v codex &>/dev/null; then
@@ -130,6 +149,16 @@ if [[ ! -d "$WORKDIR" ]]; then
     exit 1
 fi
 
+_trajectory_emit prompt_dispatch "$PHASE" codex-direct "$(jq -nc \
+    --arg model "$MODEL" \
+    --arg sandbox "$SANDBOX" \
+    --arg cwd "$WORKDIR" \
+    --arg prompt_bytes "${#PROMPT_ARG}" \
+    '{model:$model,sandbox:$sandbox,cwd:$cwd,prompt_bytes:($prompt_bytes|tonumber),source:"codex-direct"}')"
+_trajectory_emit model_selection "$PHASE" codex-direct "$(jq -nc \
+    --arg provider openai --arg model "$MODEL" --arg role "$PHASE" \
+    '{provider:$provider,model:$model,role:$role}')"
+
 # --- Build invocation ---
 ARGS=(
     exec
@@ -146,6 +175,14 @@ ARGS=(
 echo "codex-direct: phase=$PHASE model=$MODEL sandbox=$SANDBOX cwd=$WORKDIR" >&2
 echo "codex-direct: transcript=$TRANSCRIPT" >&2
 echo "codex-direct: last-message=$LAST_MSG" >&2
+
+_trajectory_emit tool_command "$PHASE" codex-direct "$(jq -nc \
+    --arg command "codex exec" \
+    --arg model "$MODEL" \
+    --arg sandbox "$SANDBOX" \
+    --arg cwd "$WORKDIR" \
+    --arg timeout "$TIMEOUT_SEC" \
+    '{command:$command,model:$model,sandbox:$sandbox,cwd:$cwd,timeout_seconds:($timeout|tonumber)}')"
 
 invoke() {
     if [[ -n "$PROMPT_ARG" ]]; then
@@ -169,6 +206,12 @@ else
     invoke > "$TRANSCRIPT" 2>&1
     RC=$?
 fi
+
+_trajectory_emit command_output "$PHASE" codex-direct "$(jq -nc \
+    --arg exit_code "$RC" \
+    --arg transcript "$TRANSCRIPT" \
+    --arg last_message "$LAST_MSG" \
+    '{exit_code:($exit_code|tonumber),transcript:$transcript,last_message:$last_message}')"
 
 # --- Classify exit ---
 case "$RC" in
@@ -201,5 +244,8 @@ if [[ ! -s "$LAST_MSG" ]]; then
 fi
 
 echo "codex-direct: OK — last message at $LAST_MSG" >&2
+_trajectory_emit phase_decision "$PHASE" codex-direct "$(jq -nc \
+    --arg decision complete --arg output "$LAST_MSG" \
+    '{decision:$decision,status:"success",output:$output}')"
 echo "$LAST_MSG"
 exit 0

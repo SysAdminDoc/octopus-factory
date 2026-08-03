@@ -24,6 +24,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
 _find_db() {
     if [[ -n "${OCTOPUS_STATE_DB:-}" ]]; then
         echo "$OCTOPUS_STATE_DB"
@@ -39,6 +41,26 @@ _find_db() {
 }
 
 DB="$(_find_db)"
+
+_trajectory_emit() {
+    local run_id="$1"
+    local event="$2"
+    local phase="$3"
+    local iteration="$4"
+    local payload="$5"
+    local repo_path
+
+    [[ "${OCTOPUS_TRAJECTORY_DISABLED:-}" =~ ^(1|true|yes)$ ]] && return 0
+    [[ -f "$SCRIPT_DIR/factory-trajectory.sh" ]] || return 0
+    command -v jq >/dev/null 2>&1 || return 0
+    repo_path=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+    OCTOPUS_RUN_ID="$run_id" \
+        OCTOPUS_TRAJECTORY_REPO="$repo_path" \
+        OCTOPUS_TRAJECTORY_SOURCE=state-store \
+        bash "$SCRIPT_DIR/factory-trajectory.sh" emit "$event" \
+        --phase "$phase" --iteration "$iteration" --actor state-store \
+        --payload "$payload" >/dev/null 2>&1 || true
+}
 
 _require_sqlite() {
     if ! command -v sqlite3 >/dev/null 2>&1; then
@@ -143,6 +165,12 @@ VALUES
    'json', $(_sql_quote "$payload"));
 SQL
     echo "saved: ${run_id}/${phase}/${iter}"
+    _trajectory_emit "$run_id" checkpoint "$phase" "$iter" "$(jq -cn \
+        --arg db "$DB" \
+        --arg id "$iter" \
+        --arg namespace "$phase" \
+        --arg bytes "${#payload}" \
+        '{action:"state-save",database:$db,checkpoint_id:$id,checkpoint_namespace:$namespace,payload_bytes:($bytes|tonumber)}')"
 }
 
 cmd_load() {
@@ -198,6 +226,10 @@ cmd_complete() {
     _ensure_db
     sqlite3 "$DB" "UPDATE runs SET status='completed', ended_at=strftime('%s','now'), total_cost=${cost} WHERE run_id=$(_sql_quote "$run_id");"
     echo "completed: ${run_id}"
+    _trajectory_emit "$run_id" run_end "" "" "$(jq -cn \
+        --arg status completed \
+        --arg cost "$cost" \
+        '{status:$status,total_cost:($cost|tonumber),source:"state-store"}')"
 }
 
 cmd_prune() {
