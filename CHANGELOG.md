@@ -61,6 +61,13 @@ inspection. Operation IDs are reserved before side effects; destructive history
 rewrites, force-pushes, major dependency drift, and release publishing require
 explicit graph approvals.
 
+### Added — Deterministic repository context packs
+
+Added `context-pack.sh` with bounded, local-only discovery for stack signals,
+repository maps, dependency/build/test surfaces, UI files, recent history and
+roadmap excerpts, plus filename-based risk hotspots. Outputs are redacted and
+written atomically under `.factory/context/`.
+
 ### Added — `tools/prompt-builder/` GUI helper application
 
 A companion PyQt6 desktop app that assembles factory prompts via a form + live preview, ending in a one-click clipboard copy. Lives at `tools/prompt-builder/` so prompt templates stay in sync with `prompts/examples.md` and the canonical recipes.

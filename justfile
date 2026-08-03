@@ -77,6 +77,11 @@ dep-scan *ARGS:
 compress *ARGS:
     @{{bin}}/context-compress.sh {{ARGS}}
 
+# Build an allowlisted local context pack and repository map.
+[group('tools')]
+context-pack *ARGS:
+    @{{bin}}/context-pack.sh {{replace(ARGS, "\\", "/")}}
+
 # ─── State / recovery ─────────────────────────────────────────────────────────
 
 # Checkpoint operations (shadow-git): cp_init / cp_snapshot <phase> / cp_rollback <phase>.

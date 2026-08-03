@@ -17,6 +17,18 @@ setup() {
     [ "$status" -eq 0 ]
 }
 
+@test "prompt-builder: high-risk factory runs can require a context pack" {
+    run env PYTHONPATH="$PROMPT_BUILDER" "$PYTHON_BIN" -c '
+from prompt_builder.templates import TEMPLATES, render_factory_loop
+
+assert any(field.key == "context_pack_required" for field in TEMPLATES["factory_loop"].fields)
+prompt = render_factory_loop({"repo": "/tmp/demo", "context_pack_required": True})
+assert "context-pack.sh" in prompt and "/tmp/demo" in prompt
+assert "repo-map.json" in prompt
+'
+    [ "$status" -eq 0 ]
+}
+
 @test "prompt-builder: offscreen UI smoke keeps diagnostics and navigation intact" {
     if ! "$PYTHON_BIN" -c 'import PyQt6' >/dev/null 2>&1; then
         skip "PyQt6 not installed"

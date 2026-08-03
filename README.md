@@ -262,6 +262,7 @@ just secret-scan              # gitleaks pass on working tree
 just redteam                  # Q1 agent-safety contract gate
 just redteam-nightly          # full coding-agent collection
 just dep-scan                 # osv-scanner CVE pass
+just context-pack /path/to/repo # local repository map + context pack
 just checkpoint cp_init       # initialize shadow-git checkpoint store
 just graph validate            # validate the durable phase graph
 just graph explain release     # inspect release side effects and approval gates
@@ -293,6 +294,21 @@ History rewrites, force-pushes, major dependency drift, and release publishing
 are graph interrupts. `mark ... running` exits with an approval-required result
 until the matching `--approve <interrupt-id>` is recorded. Reusing an operation
 ID is idempotent and never replays a completed operation.
+
+### Context packs
+
+`context-pack.sh` performs a local-only, allowlisted scan and writes
+`.factory/context/pack.md` plus `.factory/context/repo-map.json` in the target
+repository. It records stack signals, a bounded tree, dependency manifests,
+test/build commands, public entry points, UI files, documentation, recent git
+history, roadmap/changelog excerpts, and filename-based risk hotspots. File
+snippets are size-capped and redact common credential patterns; no arbitrary
+repository commands or network requests are executed.
+
+```bash
+just context-pack /path/to/repo
+just context-pack /path/to/repo --json
+```
 
 ### Routing modes
 
