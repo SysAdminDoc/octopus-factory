@@ -82,6 +82,13 @@ board records pass/fail, cost, wall-clock time, commits, tests, rollback events,
 and human intervention counts, and publishes JSON/Markdown output in CI with
 benchmark, red-team, and Scorecard badges.
 
+### Added — Optional read-only MCP interface
+
+Added a stdio JSON-RPC MCP server backed by an explicit read-only policy for
+factory prompts, directives, recipes, role/workflow contracts, and docs. MCP
+requests are emitted into the canonical trajectory ledger, while traversal,
+execution, network, git, and write-capable operations are rejected.
+
 ### Added — `tools/prompt-builder/` GUI helper application
 
 A companion PyQt6 desktop app that assembles factory prompts via a form + live preview, ending in a one-click clipboard copy. Lives at `tools/prompt-builder/` so prompt templates stay in sync with `prompts/examples.md` and the canonical recipes.

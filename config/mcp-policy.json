@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "server": "octopus-factory-mcp",
+  "protocol_versions": [
+    "2025-06-18",
+    "2025-03-26",
+    "2024-11-05"
+  ],
+  "read_only": true,
+  "max_resource_count": 512,
+  "allowed_roots": [
+    {
+      "id": "prompts",
+      "path": "prompts",
+      "description": "Factory prompt templates and examples",
+      "extensions": [".md", ".txt"],
+      "max_bytes": 262144
+    },
+    {
+      "id": "directives",
+      "path": "memory/directives",
+      "description": "Factory directive contracts",
+      "extensions": [".md", ".txt"],
+      "max_bytes": 262144
+    },
+    {
+      "id": "recipes",
+      "path": "memory/recipes",
+      "description": "Factory recipe contracts",
+      "extensions": [".md", ".txt"],
+      "max_bytes": 262144
+    },
+    {
+      "id": "roles",
+      "path": "config/roles",
+      "description": "Role guardrail contracts",
+      "extensions": [".json"],
+      "max_bytes": 131072
+    },
+    {
+      "id": "workflows",
+      "path": "config/workflows",
+      "description": "Durable factory workflow contracts",
+      "extensions": [".json"],
+      "max_bytes": 262144
+    },
+    {
+      "id": "docs",
+      "path": "README.md",
+      "description": "Factory usage documentation",
+      "extensions": [".md"],
+      "max_bytes": 524288
+    },
+    {
+      "id": "changelog",
+      "path": "CHANGELOG.md",
+      "description": "Factory release history",
+      "extensions": [".md"],
+      "max_bytes": 524288
+    }
+  ],
+  "operations": {
+    "resources/list": "read",
+    "resources/read": "read",
+    "prompts/list": "read",
+    "prompts/get": "read",
+    "tools/list": "read",
+    "tools/call": "read-only-tools"
+  },
+  "forbidden_operations": [
+    "write",
+    "edit",
+    "delete",
+    "execute",
+    "shell",
+    "git",
+    "network"
+  ],
+  "trajectory_event": "tool_command"
+}

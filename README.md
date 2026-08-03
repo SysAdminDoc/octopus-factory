@@ -352,6 +352,24 @@ The benchmark badge is the latest `main` workflow result; the red-team badge
 uses that workflow's Q1 gate, and the Scorecard badge links to OpenSSF's live
 project score.
 
+### Optional read-only MCP server
+
+`octopus-factory-mcp` speaks MCP JSON-RPC over stdio and exposes only the files
+listed in `config/mcp-policy.json`: prompts, directives, recipes, role/workflow
+contracts, and release docs. It has no write, execute, network, or git tools.
+Every resource, prompt, and tool request is recorded as a `tool_command` in
+the canonical trajectory ledger; set `OCTOPUS_TRAJECTORY_DISABLED=1` only for
+an explicitly unlogged local test.
+
+```bash
+just mcp
+```
+
+The server accepts the MCP lifecycle plus `resources/list`, `resources/read`,
+`prompts/list`, `prompts/get`, `tools/list`, and the two read-only factory tools.
+Changing the policy to add a write-capable operation is intentionally rejected
+unless the server implementation and its security tests are changed together.
+
 ### Routing modes
 
 ```bash

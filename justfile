@@ -82,6 +82,11 @@ compress *ARGS:
 context-pack *ARGS:
     @{{bin}}/context-pack.sh {{replace(ARGS, "\\", "/")}}
 
+# Serve allowlisted prompts, directives, recipes, and contracts over read-only MCP stdio.
+[group('tools')]
+mcp *ARGS:
+    @{{bin}}/octopus-factory-mcp.sh {{ARGS}}
+
 # Validate a JSON/YAML role result against config/roles/*.json.
 [group('tools')]
 validate-role-output *ARGS:
