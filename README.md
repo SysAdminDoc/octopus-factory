@@ -3,6 +3,9 @@
 A recipe-driven autonomous coding pipeline for [Claude Code](https://claude.ai/code) + [Claude Octopus](https://github.com/nyldn/claude-octopus). Hand it a repo path and one prompt; it researches, builds, audits, releases — across four AI subscriptions, with build gates, secret scans, cost caps, and rollback on failure.
 
 [![CI](https://github.com/SysAdminDoc/octopus-factory/actions/workflows/ci.yml/badge.svg)](https://github.com/SysAdminDoc/octopus-factory/actions/workflows/ci.yml)
+[![Benchmark board](https://github.com/SysAdminDoc/octopus-factory/actions/workflows/benchmark.yml/badge.svg?branch=main)](https://github.com/SysAdminDoc/octopus-factory/actions/workflows/benchmark.yml)
+[![Red-team gate](https://github.com/SysAdminDoc/octopus-factory/actions/workflows/benchmark.yml/badge.svg?branch=main&label=red-team)](https://github.com/SysAdminDoc/octopus-factory/actions/workflows/benchmark.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/SysAdminDoc/octopus-factory/badge)](https://securityscorecards.dev/viewer/?uri=github.com/SysAdminDoc/octopus-factory)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#install)
 [![Status](https://img.shields.io/badge/status-alpha-orange.svg)](#status)
@@ -330,6 +333,24 @@ adds the contract envelope to the task once, caches that exact prompt, and
 replays it unchanged to Codex if Copilot exhausts quota. This preserves the
 task ID, required artifacts, forbidden side effects, and output schema across
 provider handoffs.
+
+### Benchmark board
+
+The public benchmark uses the five checked-in fixture repositories under
+`tests/agent-evals/fixtures/` and runs the deterministic contract harness for
+each routing preset. It records pass/fail, zero-cost local execution,
+wall-clock time, commits, tests, rollback events, and human interventions in
+`.factory/benchmarks/latest.json` plus a human-readable board. CI exposes the
+board in the workflow summary and runs the red-team and CI-posture gates in the
+same job:
+
+```bash
+just benchmark --presets balanced,copilot-heavy
+```
+
+The benchmark badge is the latest `main` workflow result; the red-team badge
+uses that workflow's Q1 gate, and the Scorecard badge links to OpenSSF's live
+project score.
 
 ### Routing modes
 

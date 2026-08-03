@@ -196,6 +196,11 @@ eval-agent *ARGS:
 eval-agent-nightly *ARGS:
     @{{bin}}/eval-agent.sh nightly {{replace(ARGS, "\\", "/")}}
 
+# Run the deterministic fixture board across the configured routing presets.
+[group('dev')]
+benchmark *ARGS:
+    @{{bin}}/benchmark-board.sh run {{replace(ARGS, "\\", "/")}}
+
 # Run native checks without depending on just's shebang handling.
 [group('dev')]
 verify-native *ARGS:

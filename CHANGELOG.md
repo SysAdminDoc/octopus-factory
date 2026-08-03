@@ -75,6 +75,13 @@ researcher contracts plus JSON/YAML output validation. Role-aware Copilot
 fallback now envelopes and replays the same structured task and output schema
 to Codex when quota fallback occurs.
 
+### Added — Public factory capability benchmark board
+
+Added a deterministic five-fixture benchmark across every routing preset. The
+board records pass/fail, cost, wall-clock time, commits, tests, rollback events,
+and human intervention counts, and publishes JSON/Markdown output in CI with
+benchmark, red-team, and Scorecard badges.
+
 ### Added — `tools/prompt-builder/` GUI helper application
 
 A companion PyQt6 desktop app that assembles factory prompts via a form + live preview, ending in a one-click clipboard copy. Lives at `tools/prompt-builder/` so prompt templates stay in sync with `prompts/examples.md` and the canonical recipes.
