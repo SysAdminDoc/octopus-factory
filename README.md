@@ -204,6 +204,9 @@ just verify-container
 The same functions are exposed through the optional `.dagger/` module. Native
 checks remain the fast default; the container and dev-container paths are the
 parity fallback when Windows or macOS tool discovery is unreliable.
+The checked-in `mise.toml` pins the native toolchain. `factory-doctor.sh`
+reports missing or WindowsApps-shimmed executables and prints OS-specific
+bootstrap commands with `--fix-hints`.
 
 ### Agent-safety red-team gate
 

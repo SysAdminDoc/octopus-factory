@@ -47,6 +47,12 @@ SARIF upload, and `ci-posture` inspection for workflow permissions, action SHA
 pinning, egress commands, and Scorecard readiness. Q1 red-team reports now
 include the target repository's posture result.
 
+### Added — Pinned toolchain manifest and doctor recovery hints
+
+Added `mise.toml` pins for the factory verification/security tools and extended
+`factory-doctor.sh --fix-hints` with explicit Windows, macOS, Debian/Ubuntu,
+and container recovery commands plus WindowsApps shim detection.
+
 ### Added — `tools/prompt-builder/` GUI helper application
 
 A companion PyQt6 desktop app that assembles factory prompts via a form + live preview, ending in a one-click clipboard copy. Lives at `tools/prompt-builder/` so prompt templates stay in sync with `prompts/examples.md` and the canonical recipes.

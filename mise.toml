@@ -1,0 +1,14 @@
+# Pinned factory verification and release-security toolchain.
+# `mise install` bootstraps the native lane without relying on host PATH shape.
+
+[tools]
+python = "3.12.8"
+jq = "1.7.1"
+shellcheck = "0.10.0"
+bats = "1.11.0"
+just = "1.40.0"
+"pipx:git-filter-repo" = "2.47.0"
+"aqua:gitleaks/gitleaks" = "8.24.2"
+"aqua:google/osv-scanner" = "2.0.2"
+"aqua:anchore/syft" = "1.18.1"
+"aqua:sigstore/cosign" = "2.4.1"

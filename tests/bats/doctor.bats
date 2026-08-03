@@ -46,3 +46,20 @@ assert any("red-team" in item.lower() for item in data["warnings"]), data
 
     rm -rf "$tmp"
 }
+
+@test "factory-doctor: --fix-hints prints OS install and container recovery commands" {
+    local tmp
+    tmp="$(mktemp -d)"
+    mkdir -p "$tmp/.claude-octopus/config"
+    printf '%s\n' '{"_mode":"balanced","routing":{"phases":{},"roles":{}}}' \
+        > "$tmp/.claude-octopus/config/providers.json"
+
+    run env HOME="$tmp" PATH="/usr/bin:/bin" bash "$SCRIPT" --fix-hints
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Windows: winget install"* ]]
+    [[ "$output" == *"macOS: brew install"* ]]
+    [[ "$output" == *"Debian/Ubuntu: sudo apt-get"* ]]
+    [[ "$output" == *"just verify-container"* ]]
+
+    rm -rf "$tmp"
+}

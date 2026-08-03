@@ -19,6 +19,7 @@
 #   factory-doctor.sh --quiet         # only print problems (suppress OK lines)
 #   factory-doctor.sh --json          # machine-readable
 #   factory-doctor.sh --route-only    # just show what each phase routes to
+#   factory-doctor.sh --fix-hints     # print native install + container fallback commands
 #
 # Run this BEFORE invoking the factory on a long run so you don't spend
 # 30 minutes wondering why Codex never fires.
@@ -31,13 +32,15 @@ FACTORY_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 QUIET=false
 JSON=false
 ROUTE_ONLY=false
+FIX_HINTS=false
 for arg in "$@"; do
     case "$arg" in
         --quiet|-q) QUIET=true ;;
         --json) JSON=true ;;
         --route-only) ROUTE_ONLY=true ;;
+        --fix-hints) FIX_HINTS=true ;;
         -h|--help)
-            sed -n '2,18p' "$0"
+            sed -n '2,23p' "$0"
             exit 0 ;;
         *)
             echo "factory-doctor: unknown arg: $arg" >&2
@@ -48,6 +51,8 @@ done
 HARD_FAILURES=()
 SOFT_WARNINGS=()
 OK_LINES=()
+FIX_HINT_LINES=()
+NATIVE_MISSING=()
 
 ok()    { OK_LINES+=("[OK]    $1"); }
 warn()  { SOFT_WARNINGS+=("[WARN]  $1"); }
@@ -107,6 +112,50 @@ status_code() {
 
 PROVIDERS_JSON="${HOME}/.claude-octopus/config/providers.json"
 ORCH_SH="${HOME}/.claude/plugins/cache/nyldn-plugins/octo/9.23.0/scripts/orchestrate.sh"
+
+# ---------- Toolchain preflight ----------
+# Resolve binaries without invoking them. WindowsApps entries are launch shims,
+# not proof that the corresponding runtime is installed and usable.
+TOOLCHAIN_MANIFEST="$FACTORY_ROOT/mise.toml"
+NATIVE_SHIMS=()
+
+resolve_tool() {
+    case "$1" in
+        python3)
+            command -v python3 2>/dev/null || command -v python 2>/dev/null || true ;;
+        *)
+            command -v "$1" 2>/dev/null || true ;;
+    esac
+}
+
+for tool in bash python3 jq bats shellcheck just git-filter-repo gitleaks osv-scanner syft cosign mise; do
+    TOOL_PATH="$(resolve_tool "$tool")"
+    if [[ -z "$TOOL_PATH" ]]; then
+        NATIVE_MISSING+=("$tool")
+    elif [[ "${TOOL_PATH,,}" == *windowsapps* ]]; then
+        NATIVE_SHIMS+=("$tool=$TOOL_PATH")
+    fi
+done
+
+if [[ ${#NATIVE_MISSING[@]} -eq 0 && ${#NATIVE_SHIMS[@]} -eq 0 ]]; then
+    ok "native verification toolchain discovered"
+else
+    if [[ ${#NATIVE_MISSING[@]} -gt 0 ]]; then
+        warn "native verification toolchain is incomplete; missing: ${NATIVE_MISSING[*]}"
+    fi
+    if [[ ${#NATIVE_SHIMS[@]} -gt 0 ]]; then
+        warn "WindowsApps launch shims detected; install real executables before invoking: ${NATIVE_SHIMS[*]}"
+    fi
+    warn "use --fix-hints for OS install commands or run just verify-container"
+fi
+
+FIX_HINT_LINES+=(
+    "Windows: winget install --id jdx.mise --exact; mise install"
+    "macOS: brew install mise; mise install"
+    "Debian/Ubuntu: sudo apt-get update && sudo apt-get install -y bash python3 jq bats shellcheck just"
+    "All OS: mise trust \"$TOOLCHAIN_MANIFEST\" && mise install"
+    "Portable fallback: start Docker, then run: just verify-container"
+)
 
 # ---------- Section 1: providers.json ----------
 if [[ ! -f "$PROVIDERS_JSON" ]]; then
@@ -304,6 +353,13 @@ if $JSON; then
         printf ',\n'
         printf '  "failures": '
         json_array "${HARD_FAILURES[@]}"
+        printf ',\n'
+        printf '  "fix_hints": '
+        if $FIX_HINTS; then
+            json_array "${FIX_HINT_LINES[@]}"
+        else
+            printf '[]'
+        fi
         printf '\n}\n'
     }
     exit "$EXIT_CODE"
@@ -336,6 +392,12 @@ else
     if [[ -n "$ROUTING_REPORT" ]]; then
         echo "Phase routing under '$ACTIVE_MODE' preset:"
         echo "$ROUTING_REPORT"
+        echo ""
+    fi
+
+    if $FIX_HINTS; then
+        echo "Fix hints (no commands were executed):"
+        for line in "${FIX_HINT_LINES[@]}"; do echo "  $line"; done
         echo ""
     fi
 
