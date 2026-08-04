@@ -6,6 +6,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-08-03
+
 ### Added — Canonical factory trajectory ledger
 
 Every run can now append a normalized, locally stored JSONL ledger at
@@ -88,6 +90,12 @@ Added a stdio JSON-RPC MCP server backed by an explicit read-only policy for
 factory prompts, directives, recipes, role/workflow contracts, and docs. MCP
 requests are emitted into the canonical trajectory ledger, while traversal,
 execution, network, git, and write-capable operations are rejected.
+
+### Changed — Reproducible prompt-builder build fallback
+
+The prompt-builder build recipe now uses an executable build wrapper that can
+reuse installed dependencies or create a temporary isolated Python environment
+when the host toolchain is missing PyQt6/PyInstaller.
 
 ### Added — `tools/prompt-builder/` GUI helper application
 
@@ -624,6 +632,7 @@ Initial public release. Full pipeline working end-to-end on Windows 11 + Git Bas
 - Linux Ubuntu 24.04 / Debian 12 / Arch — light testing
 - Provider stack: Claude Max, ChatGPT Pro Codex, Gemini Pro, GitHub Copilot
 
-[Unreleased]: https://github.com/SysAdminDoc/octopus-factory/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/SysAdminDoc/octopus-factory/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.7.0
 [0.2.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.2.0
 [0.1.0]: https://github.com/SysAdminDoc/octopus-factory/releases/tag/v0.1.0

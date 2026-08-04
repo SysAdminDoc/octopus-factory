@@ -18,7 +18,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_POLICY = ROOT / "config" / "mcp-policy.json"
-SERVER_VERSION = "1"
+SERVER_VERSION = "0.7.0"
 JSONRPC_VERSION = "2.0"
 READ_ONLY_OPERATION_VALUES = {"read", "read-only-tools"}
 REQUIRED_FORBIDDEN_OPERATIONS = {"write", "edit", "delete", "execute", "shell", "git", "network"}

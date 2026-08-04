@@ -179,12 +179,7 @@ prompt-builder *ARGS:
 # Build the prompt-builder as a standalone executable via PyInstaller.
 [group('dev')]
 prompt-builder-build:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    cd tools/prompt-builder
-    python -m pip install -r requirements.txt --quiet
-    python -m PyInstaller prompt-builder.spec --clean --noconfirm
-    echo "Built: tools/prompt-builder/dist/prompt-builder$( [ \"$OSTYPE\" = msys -o \"$OSTYPE\" = cygwin ] && echo .exe || true )"
+    @{{bin}}/prompt-builder-build.sh
 
 # Run bats-core unit tests (syntax / preset / justfile smoke).
 [group('dev')]
@@ -236,15 +231,15 @@ lint:
 # Print version + dependency status.
 [group('dev')]
 version:
-    #!/usr/bin/env bash
-    echo "octopus-factory"
-    grep -m1 '^## v' CHANGELOG.md | sed 's/^## /  /'
-    just --version | sed 's/^/  /'
-    bash --version | head -1 | sed 's/^/  /'
-    for cmd in claude codex copilot gemini gh git jq sqlite3; do
-        if command -v "$cmd" >/dev/null 2>&1; then
-            echo "  ✓ $cmd"
-        else
-            echo "  ✗ $cmd (missing)"
-        fi
-    done
+    @echo "octopus-factory"
+    @grep -m1 '^## \[[0-9]' CHANGELOG.md | sed 's/^## /  /'
+    @if command -v just >/dev/null 2>&1; then just --version | sed 's/^/  /'; else echo '  ✗ just (missing)'; fi
+    @bash --version | head -1 | sed 's/^/  /'
+    @if command -v claude >/dev/null 2>&1; then echo '  ✓ claude'; else echo '  ✗ claude (missing)'; fi
+    @if command -v codex >/dev/null 2>&1; then echo '  ✓ codex'; else echo '  ✗ codex (missing)'; fi
+    @if command -v copilot >/dev/null 2>&1; then echo '  ✓ copilot'; else echo '  ✗ copilot (missing)'; fi
+    @if command -v gemini >/dev/null 2>&1; then echo '  ✓ gemini'; else echo '  ✗ gemini (missing)'; fi
+    @if command -v gh >/dev/null 2>&1; then echo '  ✓ gh'; else echo '  ✗ gh (missing)'; fi
+    @if command -v git >/dev/null 2>&1; then echo '  ✓ git'; else echo '  ✗ git (missing)'; fi
+    @if command -v jq >/dev/null 2>&1; then echo '  ✓ jq'; else echo '  ✗ jq (missing)'; fi
+    @if command -v sqlite3 >/dev/null 2>&1; then echo '  ✓ sqlite3'; else echo '  ✗ sqlite3 (missing)'; fi
